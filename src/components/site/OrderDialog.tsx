@@ -74,7 +74,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
     return sum + (d ? d.price * c.qty : 0);
   }, 0);
 
-  const submit = async (mode: "cod" | "stripe") => {
+  const submit = async (mode: "cod" | "momo") => {
     const parsed = orderSchema.safeParse(form);
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
