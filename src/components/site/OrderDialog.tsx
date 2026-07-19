@@ -37,24 +37,27 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
   const createCheckout = useServerFn(createCheckoutSession);
   const verifyCheckout = useServerFn(verifyCheckoutSession);
 
-  // Detect return from Stripe success
+  // Detect return from Monime success
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const sid = params.get("session_id");
-    if (params.get("paid") === "1" && sid) {
-      void verifyCheckout({ data: { session_id: sid } }).then((r) => {
+    const oid = params.get("order_id");
+    if (params.get("paid") === "1" && oid) {
+      void verifyCheckout({ data: { order_id: oid } }).then((r) => {
         if (r.paid) {
           toast.success("Payment received — thank you!");
-          void track("checkout_completed", { session_id: sid });
+          void track("checkout_completed", { order_id: oid });
+        } else {
+          toast.info("We're confirming your mobile-money payment. You'll get a call shortly.");
         }
         const url = new URL(window.location.href);
         url.searchParams.delete("paid");
-        url.searchParams.delete("session_id");
+        url.searchParams.delete("order_id");
         window.history.replaceState({}, "", url.toString());
       });
     }
   }, [verifyCheckout]);
+
 
   const setQty = (slug: string, qty: number) => {
     setCart((prev) => {
@@ -71,7 +74,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
     return sum + (d ? d.price * c.qty : 0);
   }, 0);
 
-  const submit = async (mode: "cod" | "stripe") => {
+  const submit = async (mode: "cod" | "momo") => {
     const parsed = orderSchema.safeParse(form);
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
@@ -89,7 +92,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
 
     void track("store_form_submit", { mode, item_count: items.length, total });
 
-    if (mode === "stripe") {
+    if (mode === "momo") {
       try {
         const r = await createCheckout({
           data: {
@@ -165,7 +168,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
               <DialogTitle className="display text-2xl flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5" /> Place an order
               </DialogTitle>
-              <DialogDescription>Pay online with card, or cash on delivery in Sierra Leonean Leones (Le).</DialogDescription>
+              <DialogDescription>Pay instantly with Orange Money or Afrimoney, or cash on delivery. Prices in Sierra Leonean Leones (Le).</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
@@ -224,13 +227,13 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
 
             <div className="grid sm:grid-cols-2 gap-2 pt-1">
               <Button
-                onClick={() => submit("stripe")}
+                onClick={() => submit("momo")}
                 disabled={submitting || cart.length === 0}
                 size="lg"
                 className="w-full bg-[hsl(var(--sea))] hover:bg-[hsl(var(--sea))]/90"
               >
                 <CreditCard className="mr-2 h-4 w-4" />
-                {submitting ? "Starting…" : `Pay with card · Le ${total}`}
+                {submitting ? "Starting…" : `Pay with Orange / Afrimoney · Le ${total}`}
               </Button>
               <Button
                 onClick={() => submit("cod")}
@@ -242,6 +245,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
                 Cash on delivery
               </Button>
             </div>
+
           </>
         )}
       </DialogContent>
