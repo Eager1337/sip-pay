@@ -37,24 +37,27 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
   const createCheckout = useServerFn(createCheckoutSession);
   const verifyCheckout = useServerFn(verifyCheckoutSession);
 
-  // Detect return from Stripe success
+  // Detect return from Monime success
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const sid = params.get("session_id");
-    if (params.get("paid") === "1" && sid) {
-      void verifyCheckout({ data: { session_id: sid } }).then((r) => {
+    const oid = params.get("order_id");
+    if (params.get("paid") === "1" && oid) {
+      void verifyCheckout({ data: { order_id: oid } }).then((r) => {
         if (r.paid) {
           toast.success("Payment received — thank you!");
-          void track("checkout_completed", { session_id: sid });
+          void track("checkout_completed", { order_id: oid });
+        } else {
+          toast.info("We're confirming your mobile-money payment. You'll get a call shortly.");
         }
         const url = new URL(window.location.href);
         url.searchParams.delete("paid");
-        url.searchParams.delete("session_id");
+        url.searchParams.delete("order_id");
         window.history.replaceState({}, "", url.toString());
       });
     }
   }, [verifyCheckout]);
+
 
   const setQty = (slug: string, qty: number) => {
     setCart((prev) => {
