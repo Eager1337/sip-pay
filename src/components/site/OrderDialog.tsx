@@ -227,13 +227,13 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
 
             <div className="grid sm:grid-cols-2 gap-2 pt-1">
               <Button
-                onClick={() => submit("stripe")}
+                onClick={() => submit("momo")}
                 disabled={submitting || cart.length === 0}
                 size="lg"
                 className="w-full bg-[hsl(var(--sea))] hover:bg-[hsl(var(--sea))]/90"
               >
                 <CreditCard className="mr-2 h-4 w-4" />
-                {submitting ? "Starting…" : `Pay with card · Le ${total}`}
+                {submitting ? "Starting…" : `Pay with Orange / Afrimoney · Le ${total}`}
               </Button>
               <Button
                 onClick={() => submit("cod")}
@@ -245,6 +245,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
                 Cash on delivery
               </Button>
             </div>
+
           </>
         )}
       </DialogContent>
