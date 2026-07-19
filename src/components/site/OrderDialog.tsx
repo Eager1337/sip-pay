@@ -168,7 +168,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
               <DialogTitle className="display text-2xl flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5" /> Place an order
               </DialogTitle>
-              <DialogDescription>Pay online with card, or cash on delivery in Sierra Leonean Leones (Le).</DialogDescription>
+              <DialogDescription>Pay instantly with Orange Money or Afrimoney, or cash on delivery. Prices in Sierra Leonean Leones (Le).</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
