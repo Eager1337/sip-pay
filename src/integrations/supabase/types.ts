@@ -14,150 +14,16 @@ export type Database = {
   }
   public: {
     Tables: {
-      analytics_events: {
-        Row: {
-          created_at: string
-          event_type: string
-          id: string
-          metadata: Json
-          path: string | null
-          session_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          event_type: string
-          id?: string
-          metadata?: Json
-          path?: string | null
-          session_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          event_type?: string
-          id?: string
-          metadata?: Json
-          path?: string | null
-          session_id?: string | null
-        }
-        Relationships: []
-      }
-      orders: {
-        Row: {
-          address: string
-          created_at: string
-          customer_name: string
-          id: string
-          items: Json
-          notes: string | null
-          paid_at: string | null
-          phone: string
-          status: string
-          stripe_session_id: string | null
-          total_leones: number
-          updated_at: string
-        }
-        Insert: {
-          address: string
-          created_at?: string
-          customer_name: string
-          id?: string
-          items: Json
-          notes?: string | null
-          paid_at?: string | null
-          phone: string
-          status?: string
-          stripe_session_id?: string | null
-          total_leones: number
-          updated_at?: string
-        }
-        Update: {
-          address?: string
-          created_at?: string
-          customer_name?: string
-          id?: string
-          items?: Json
-          notes?: string | null
-          paid_at?: string | null
-          phone?: string
-          status?: string
-          stripe_session_id?: string | null
-          total_leones?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_roles: {
-        Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
-      wholesale_leads: {
-        Row: {
-          business_name: string | null
-          created_at: string
-          email: string
-          estimated_quantity: string | null
-          full_name: string
-          id: string
-          message: string | null
-          phone: string
-          region: string | null
-        }
-        Insert: {
-          business_name?: string | null
-          created_at?: string
-          email: string
-          estimated_quantity?: string | null
-          full_name: string
-          id?: string
-          message?: string | null
-          phone: string
-          region?: string | null
-        }
-        Update: {
-          business_name?: string | null
-          created_at?: string
-          email?: string
-          estimated_quantity?: string | null
-          full_name?: string
-          id?: string
-          message?: string | null
-          phone?: string
-          region?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      [_ in never]: never
     }
     Enums: {
-      app_role: "admin" | "user"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -284,8 +150,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      app_role: ["admin", "user"],
-    },
+    Enums: {},
   },
 } as const
