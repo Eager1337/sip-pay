@@ -92,7 +92,7 @@ export const OrderDialog = ({ initialDrink, trigger }: OrderDialogProps) => {
 
     void track("store_form_submit", { mode, item_count: items.length, total });
 
-    if (mode === "stripe") {
+    if (mode === "momo") {
       try {
         const r = await createCheckout({
           data: {
