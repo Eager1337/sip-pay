@@ -1,10 +1,24 @@
 import { Layout } from "@/components/site/Layout";
 import { SpinBottle } from "@/components/site/SpinBottle";
-import { OrderDialog } from "@/components/site/OrderDialog";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import wood from "@/assets/wood-bg.jpg";
 import type { Drink } from "@/data/drinks";
+import { useCart } from "@/lib/cart";
+import { toast } from "sonner";
+
+const AddToCartButton = ({ drink, className }: { drink: Drink; className?: string }) => {
+  const addItem = useCart((s) => s.addItem);
+  const openDrawer = useCart((s) => s.openDrawer);
+  return (
+    <button
+      className={className ?? "btn-pill bg-[hsl(var(--sun))] text-[hsl(var(--wood))]"}
+      onClick={() => { addItem(drink.slug, 1); openDrawer(); toast.success(`${drink.short} added to cart`); }}
+    >
+      Add to cart · Le {drink.price}
+    </button>
+  );
+};
 
 interface DrinkPageProps {
   drink: Drink;
@@ -55,7 +69,7 @@ export const DrinkPage = ({ drink, description, highlight, specs }: DrinkPagePro
           <h1 className="display text-5xl md:text-7xl mt-4 mb-4">{drink.name}</h1>
           <p className="text-xl md:text-2xl text-white/80 italic">{drink.tagline}</p>
           <div className="flex flex-wrap gap-3 mt-7 items-center">
-            <OrderDialog initialDrink={drink} trigger={<button className="btn-pill bg-[hsl(var(--sun))] text-[hsl(var(--wood))]">Order · Le {drink.price}</button>} />
+            <AddToCartButton drink={drink} />
             <Link to="/store" className="btn-pill bg-white/10 text-white border border-white/20 backdrop-blur">All drinks</Link>
           </div>
         </div>
@@ -94,7 +108,7 @@ export const DrinkPage = ({ drink, description, highlight, specs }: DrinkPagePro
           ))}
         </dl>
         <div className="text-center mt-12">
-          <OrderDialog initialDrink={drink} trigger={<button className="btn-brush">Order · Le {drink.price}</button>} />
+          <AddToCartButton drink={drink} className="btn-brush" />
         </div>
       </div>
     </section>
