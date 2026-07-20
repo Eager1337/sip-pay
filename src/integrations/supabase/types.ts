@@ -41,17 +41,65 @@ export type Database = {
         }
         Relationships: []
       }
+      order_events: {
+        Row: {
+          actor: string | null
+          created_at: string
+          event_type: string
+          from_status: string | null
+          id: string
+          meta: Json
+          note: string | null
+          order_id: string
+          to_status: string | null
+        }
+        Insert: {
+          actor?: string | null
+          created_at?: string
+          event_type: string
+          from_status?: string | null
+          id?: string
+          meta?: Json
+          note?: string | null
+          order_id: string
+          to_status?: string | null
+        }
+        Update: {
+          actor?: string | null
+          created_at?: string
+          event_type?: string
+          from_status?: string | null
+          id?: string
+          meta?: Json
+          note?: string | null
+          order_id?: string
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           address: string
+          admin_notes: string | null
+          cancelled_at: string | null
           created_at: string
           customer_name: string
+          delivered_at: string | null
           id: string
           items: Json
           monime_payment_id: string | null
           monime_session_id: string | null
           notes: string | null
           paid_at: string | null
+          payment_method: string | null
           payment_provider: string | null
           phone: string
           status: string
@@ -60,14 +108,18 @@ export type Database = {
         }
         Insert: {
           address: string
+          admin_notes?: string | null
+          cancelled_at?: string | null
           created_at?: string
           customer_name: string
+          delivered_at?: string | null
           id?: string
           items: Json
           monime_payment_id?: string | null
           monime_session_id?: string | null
           notes?: string | null
           paid_at?: string | null
+          payment_method?: string | null
           payment_provider?: string | null
           phone: string
           status?: string
@@ -76,14 +128,18 @@ export type Database = {
         }
         Update: {
           address?: string
+          admin_notes?: string | null
+          cancelled_at?: string | null
           created_at?: string
           customer_name?: string
+          delivered_at?: string | null
           id?: string
           items?: Json
           monime_payment_id?: string | null
           monime_session_id?: string | null
           notes?: string | null
           paid_at?: string | null
+          payment_method?: string | null
           payment_provider?: string | null
           phone?: string
           status?: string
@@ -112,6 +168,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      webhook_events: {
+        Row: {
+          applied: boolean
+          created_at: string
+          error: string | null
+          event_type: string | null
+          id: string
+          order_id: string | null
+          payload: Json
+          provider: string
+          verified: boolean
+        }
+        Insert: {
+          applied?: boolean
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id: string
+          order_id?: string | null
+          payload?: Json
+          provider?: string
+          verified?: boolean
+        }
+        Update: {
+          applied?: boolean
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          provider?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wholesale_leads: {
         Row: {
