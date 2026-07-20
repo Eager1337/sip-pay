@@ -118,7 +118,7 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
 
     const { error: updErr } = await admin
       .from("orders")
-      .update(updates)
+      .update(updates as never)
       .eq("id", data.order_id);
     if (updErr) throw new Error(updErr.message);
 
