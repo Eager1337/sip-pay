@@ -1,7 +1,7 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Menu, X, ShoppingBag } from "lucide-react";
 import { useEffect, useState } from "react";
-import { OrderDialog } from "./OrderDialog";
+import { useCart, cartCount } from "@/lib/cart";
 
 const links = [
   { to: "/", label: "Home" },
@@ -9,13 +9,16 @@ const links = [
   { to: "/wholesale", label: "Wholesale" },
   { to: "/about", label: "Our Story" },
   { to: "/support", label: "Contact" },
+  { to: "/track", label: "Track" },
 ];
 
 export const TopNav = () => {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-  // Only the home page has the dark hero immediately under the header.
+  const items = useCart((s) => s.items);
+  const openDrawer = useCart((s) => s.openDrawer);
+  const count = cartCount(items);
   const overHero = location.pathname === "/";
 
   useEffect(() => {
@@ -47,7 +50,7 @@ export const TopNav = () => {
           </span>
         </Link>
 
-        <ul className="hidden md:flex items-center gap-8 tracking-[0.18em] uppercase text-[11px] font-semibold">
+        <ul className="hidden md:flex items-center gap-6 tracking-[0.18em] uppercase text-[11px] font-semibold">
           {links.map((l) => (
             <li key={l.label}>
               <NavLink
@@ -59,38 +62,35 @@ export const TopNav = () => {
                   }`
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    {l.label}
-                    <span
-                      className={`absolute -bottom-1 left-0 right-0 mx-auto h-px bg-[hsl(var(--sun))] transition-all ${
-                        isActive ? "w-full" : "w-0"
-                      }`}
-                    />
-                  </>
-                )}
+                {l.label}
               </NavLink>
             </li>
           ))}
         </ul>
 
-        <div className="hidden md:flex items-center gap-3">
-          <OrderDialog
-            trigger={
-              <button className="flex items-center gap-2 text-[11px] font-bold tracking-[0.2em] uppercase bg-[hsl(var(--sun))] text-[hsl(var(--wood))] rounded-full px-5 py-2 shadow-md hover:scale-[1.05] transition-transform">
-                <ShoppingBag className="h-3.5 w-3.5" /> Order
-              </button>
-            }
-          />
-        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openDrawer}
+            aria-label={`Open cart, ${count} items`}
+            className="relative flex items-center gap-2 text-[11px] font-bold tracking-[0.2em] uppercase bg-[hsl(var(--sun))] text-[hsl(var(--wood))] rounded-full px-4 py-2 shadow-md hover:scale-[1.05] transition-transform"
+          >
+            <ShoppingBag className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Cart</span>
+            {count > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-5 min-w-5 px-1 flex items-center justify-center">
+                {count}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => setOpen(!open)}
-          className="md:hidden text-white p-2 -mr-2"
-          aria-label="Menu"
-        >
-          {open ? <X size={22} /> : <Menu size={22} />}
-        </button>
+          <button
+            onClick={() => setOpen(!open)}
+            className="md:hidden text-white p-2 -mr-2"
+            aria-label="Menu"
+          >
+            {open ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </nav>
 
       {open && (
@@ -112,15 +112,6 @@ export const TopNav = () => {
                 </NavLink>
               </li>
             ))}
-            <li className="pt-4">
-              <OrderDialog
-                trigger={
-                  <button className="w-full bg-[hsl(var(--sun))] text-[hsl(var(--wood))] rounded-full py-3 text-sm font-bold uppercase tracking-[0.2em]">
-                    Order Now
-                  </button>
-                }
-              />
-            </li>
           </ul>
         </div>
       )}
