@@ -48,7 +48,7 @@ const AdminOrdersPage = () => {
     setLoading(true);
     try {
       const r = await listFn({ data: { search, status, page } });
-      setRows(r.rows as Order[]);
+      setRows(r.rows as unknown as Order[]);
       setCount(r.count);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -47,7 +47,7 @@ const CheckoutPage = () => {
       return { slug: d.slug, name: d.name, qty: c.qty, price: d.price };
     });
 
-    void track("checkout_submit", { method, item_count: itemsPayload.length, total });
+    void track("store_form_submit", { method, item_count: itemsPayload.length, total });
 
     try {
       if (method === "cod") {
