@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useServerFn } from "@tanstack/react-start";
 import { getAnalytics } from "@/lib/analytics.functions";
-import { claimFirstAdmin } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type AnalyticsResp = Awaited<ReturnType<typeof getAnalytics>>;
+
 
 const PRESETS = [
   { label: "24h", days: 1 },
@@ -61,7 +61,7 @@ export default function AdminAnalytics() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const claim = useServerFn(claimFirstAdmin);
+  
 
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,15 +76,9 @@ export default function AdminAnalytics() {
   };
 
   const becomeAdmin = async () => {
-    try {
-      const r = await claim({});
-      if (r.granted) toast.success("You are now the admin.");
-      else if (r.alreadyAdmin) toast.success("You are already an admin.");
-      setIsAdmin(true);
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
+    toast.info("Analytics uses the legacy admin. Use /admin (passcode) for order management.");
   };
+
 
   if (loading) {
     return (
