@@ -213,13 +213,18 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
 
     if (paid && !order.monime_payment_id) {
       // Idempotent: unique index on monime_payment_id prevents double-mark
+      const deliveryCode = String(Math.floor(100000 + Math.random() * 900000));
+      const commission = Math.round(((order.total_leones ?? 0) * 15) / 100);
       const { error } = await supabase
         .from("orders")
         .update({
           status: "paid",
           paid_at: new Date().toISOString(),
           monime_payment_id: json.result?.paymentId ?? null,
-        })
+          delivery_code: deliveryCode,
+          rider_commission_pct: 15,
+          rider_commission_leones: commission,
+        } as never)
         .eq("id", order.id)
         .eq("status", "awaiting_payment"); // only flip if still pending
       if (!error) {
