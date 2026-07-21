@@ -87,64 +87,221 @@ export type Database = {
       }
       orders: {
         Row: {
+          accepted_at: string | null
           address: string
           admin_notes: string | null
           cancelled_at: string | null
           created_at: string
+          customer_confirmed_at: string | null
           customer_name: string
           delivered_at: string | null
+          delivery_code: string | null
           id: string
           items: Json
           monime_payment_id: string | null
           monime_session_id: string | null
           notes: string | null
+          out_for_delivery_at: string | null
           paid_at: string | null
           payment_method: string | null
           payment_provider: string | null
           phone: string
+          rider_commission_leones: number | null
+          rider_commission_pct: number | null
+          rider_id: string | null
           status: string
           total_leones: number
           updated_at: string
         }
         Insert: {
+          accepted_at?: string | null
           address: string
           admin_notes?: string | null
           cancelled_at?: string | null
           created_at?: string
+          customer_confirmed_at?: string | null
           customer_name: string
           delivered_at?: string | null
+          delivery_code?: string | null
           id?: string
           items: Json
           monime_payment_id?: string | null
           monime_session_id?: string | null
           notes?: string | null
+          out_for_delivery_at?: string | null
           paid_at?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           phone: string
+          rider_commission_leones?: number | null
+          rider_commission_pct?: number | null
+          rider_id?: string | null
           status?: string
           total_leones: number
           updated_at?: string
         }
         Update: {
+          accepted_at?: string | null
           address?: string
           admin_notes?: string | null
           cancelled_at?: string | null
           created_at?: string
+          customer_confirmed_at?: string | null
           customer_name?: string
           delivered_at?: string | null
+          delivery_code?: string | null
           id?: string
           items?: Json
           monime_payment_id?: string | null
           monime_session_id?: string | null
           notes?: string | null
+          out_for_delivery_at?: string | null
           paid_at?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           phone?: string
+          rider_commission_leones?: number | null
+          rider_commission_pct?: number | null
+          rider_id?: string | null
           status?: string
           total_leones?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          author_name: string | null
+          body: string | null
+          created_at: string
+          drink_slug: string
+          hidden: boolean
+          id: string
+          rating: number
+          user_id: string
+        }
+        Insert: {
+          author_name?: string | null
+          body?: string | null
+          created_at?: string
+          drink_slug: string
+          hidden?: boolean
+          id?: string
+          rating: number
+          user_id: string
+        }
+        Update: {
+          author_name?: string | null
+          body?: string | null
+          created_at?: string
+          drink_slug?: string
+          hidden?: boolean
+          id?: string
+          rating?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rider_locations: {
+        Row: {
+          id: string
+          lat: number
+          lng: number
+          order_id: string | null
+          rider_id: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          lat: number
+          lng: number
+          order_id?: string | null
+          rider_id: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          lat?: number
+          lng?: number
+          order_id?: string | null
+          rider_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_locations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rider_payouts: {
+        Row: {
+          amount_leones: number
+          created_at: string
+          id: string
+          order_id: string
+          rider_id: string
+          status: string
+        }
+        Insert: {
+          amount_leones: number
+          created_at?: string
+          id?: string
+          order_id: string
+          rider_id: string
+          status?: string
+        }
+        Update: {
+          amount_leones?: number
+          created_at?: string
+          id?: string
+          order_id?: string
+          rider_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_payouts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      riders: {
+        Row: {
+          active: boolean
+          created_at: string
+          display_name: string
+          id: string
+          phone: string
+          updated_at: string
+          user_id: string
+          vehicle: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          display_name: string
+          id?: string
+          phone: string
+          updated_at?: string
+          user_id: string
+          vehicle?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          display_name?: string
+          id?: string
+          phone?: string
+          updated_at?: string
+          user_id?: string
+          vehicle?: string | null
         }
         Relationships: []
       }
@@ -249,6 +406,27 @@ export type Database = {
         }
         Relationships: []
       }
+      wishlist: {
+        Row: {
+          created_at: string
+          drink_slug: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          drink_slug: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          drink_slug?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -263,7 +441,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "rider"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -391,7 +569,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "rider"],
     },
   },
 } as const

@@ -135,13 +135,24 @@ export const Route = createFileRoute("/api/public/webhooks/monime")({
             .eq("id", orderId)
             .maybeSingle();
           if (current && current.status !== "paid") {
+            const deliveryCode = String(Math.floor(100000 + Math.random() * 900000));
+            const { data: fullOrder } = await supabase
+              .from("orders")
+              .select("total_leones, rider_commission_pct")
+              .eq("id", orderId)
+              .maybeSingle();
+            const pct = Number(fullOrder?.rider_commission_pct ?? 15);
+            const commission = Math.round(((fullOrder?.total_leones ?? 0) * pct) / 100);
             const { error } = await supabase
               .from("orders")
               .update({
                 status: "paid",
                 paid_at: new Date().toISOString(),
                 monime_payment_id: data.paymentId ?? null,
-              })
+                delivery_code: deliveryCode,
+                rider_commission_pct: pct,
+                rider_commission_leones: commission,
+              } as never)
               .eq("id", orderId)
               .eq("status", "awaiting_payment");
             if (error) errMsg = error.message;
