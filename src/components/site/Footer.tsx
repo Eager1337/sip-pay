@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Instagram, Facebook, MapPin, Phone, Mail } from "lucide-react";
+import { Instagram, Facebook, MapPin, Phone, Mail, Bike, Shield } from "lucide-react";
 
 export const Footer = () => (
   <footer className="bg-[hsl(var(--wood))] text-white/80 text-sm">
@@ -13,6 +13,7 @@ export const Footer = () => (
         <div className="flex gap-3 pt-2">
           <a href="#" aria-label="Instagram" className="h-9 w-9 rounded-full border border-white/20 flex items-center justify-center hover:bg-[hsl(var(--sun))] hover:text-[hsl(var(--wood))] hover:border-[hsl(var(--sun))] transition"><Instagram className="h-4 w-4" /></a>
           <a href="#" aria-label="Facebook" className="h-9 w-9 rounded-full border border-white/20 flex items-center justify-center hover:bg-[hsl(var(--sun))] hover:text-[hsl(var(--wood))] hover:border-[hsl(var(--sun))] transition"><Facebook className="h-4 w-4" /></a>
+          <Link to="/delivery" aria-label="Delivery rider portal" title="Delivery rider portal" className="h-9 w-9 rounded-full border border-white/20 flex items-center justify-center hover:bg-[hsl(var(--sea))] hover:text-white hover:border-[hsl(var(--sea))] transition"><Bike className="h-4 w-4" /></Link>
         </div>
       </div>
 
@@ -40,10 +41,11 @@ export const Footer = () => (
     <div className="border-t border-white/10">
       <div className="mx-auto max-w-[1200px] px-6 py-5 flex flex-col md:flex-row md:justify-between gap-2 text-xs text-white/60">
         <span>© {new Date().getFullYear()} KK Drinks Sierra Leone. NAFDAC & SLSB approved.</span>
-        <div className="flex gap-5">
-          <Link to="#" className="hover:text-white">Privacy</Link>
-          <Link to="#" className="hover:text-white">Terms</Link>
+        <div className="flex gap-5 items-center">
+          <Link to="/track" className="hover:text-white">Track order</Link>
+          <Link to="/delivery" className="hover:text-white inline-flex items-center gap-1"><Bike className="h-3 w-3" /> Rider portal</Link>
           <Link to="/wholesale" className="hover:text-white">Stockists</Link>
+          <Link to="/admin" className="hover:text-white inline-flex items-center gap-1 opacity-60 hover:opacity-100"><Shield className="h-3 w-3" /> Admin</Link>
         </div>
       </div>
       <div className="mx-auto max-w-[1200px] px-6 pb-5 -mt-2 text-xs text-white/50 text-center md:text-right">
