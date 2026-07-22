@@ -90,8 +90,10 @@ export type Database = {
           accepted_at: string | null
           address: string
           admin_notes: string | null
+          buyer_user_id: string | null
           cancelled_at: string | null
           city: string | null
+          client_checkout_id: string | null
           created_at: string
           customer_confirmed_at: string | null
           customer_email: string | null
@@ -125,8 +127,10 @@ export type Database = {
           accepted_at?: string | null
           address: string
           admin_notes?: string | null
+          buyer_user_id?: string | null
           cancelled_at?: string | null
           city?: string | null
+          client_checkout_id?: string | null
           created_at?: string
           customer_confirmed_at?: string | null
           customer_email?: string | null
@@ -160,8 +164,10 @@ export type Database = {
           accepted_at?: string | null
           address?: string
           admin_notes?: string | null
+          buyer_user_id?: string | null
           cancelled_at?: string | null
           city?: string | null
+          client_checkout_id?: string | null
           created_at?: string
           customer_confirmed_at?: string | null
           customer_email?: string | null
