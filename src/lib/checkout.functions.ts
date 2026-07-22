@@ -144,17 +144,18 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = supabaseAdmin.from("orders") as any;
+    const analyticsEvents = supabaseAdmin.from("analytics_events") as any;
     const { subtotal, deliveryFee, discount, total } = priceBreakdown(data.items, data.customer.district);
     const itemsJson = data.items.map((i) => ({ slug: i.slug, name: i.name, qty: i.qty, price: i.price }));
 
     let existing: { id: string; status: string; monime_checkout_url: string | null } | null = null;
     if (data.client_checkout_id) {
-      const { data: row } = await supabaseAdmin
-        .from("orders")
+      const { data: row } = await orders
         .select("id, status, monime_checkout_url")
         .eq("client_checkout_id", data.client_checkout_id)
         .maybeSingle();
-      existing = row as typeof existing;
+      existing = row as { id: string; status: string; monime_checkout_url: string | null } | null;
       if (existing?.status === "awaiting_payment" && existing.monime_checkout_url) {
         return { ok: true as const, url: existing.monime_checkout_url, order_id: existing.id, reused: true as const };
       }
@@ -184,8 +185,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
 
     let order: { id: string } | null = existing ? { id: existing.id } : null;
     if (existing) {
-      const { error } = await supabaseAdmin
-        .from("orders")
+      const { error } = await orders
         .update({ ...orderPayload, monime_session_id: null, monime_checkout_url: null } as never)
         .eq("id", existing.id);
       if (error) {
@@ -193,8 +193,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         return { ok: false as const, error: "Could not prepare this order for retry." };
       }
     } else {
-      const { data: inserted, error } = await supabaseAdmin
-        .from("orders")
+      const { data: inserted, error } = await orders
         .insert(orderPayload as never)
         .select("id")
         .single();
@@ -204,6 +203,9 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       }
       order = inserted;
     }
+
+    if (!order) return { ok: false as const, error: "Could not create order" };
+    const orderId = order.id;
 
     const lineItems = data.items.map((it) => ({
       name: it.name,
@@ -227,17 +229,17 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     }
 
     const body = {
-      name: `KK Drinks order #${order.id.slice(0, 8)}`,
+      name: `KK Drinks order #${orderId.slice(0, 8)}`,
       description: `Order for ${data.customer.customer_name}`,
       lineItems,
-      reference: order.id,
-      callbackState: order.id,
-      successUrl: `${data.origin}/order/${order.id}?paid=1`,
-      cancelUrl: `${data.origin}/order/${order.id}?cancelled=1`,
+      reference: orderId,
+      callbackState: orderId,
+      successUrl: `${data.origin}/order/${orderId}?paid=1`,
+      cancelUrl: `${data.origin}/order/${orderId}?cancelled=1`,
       paymentOptions: monimePaymentOptions(data.payment_method),
       brandingOptions: { primaryColor: "#148C8C" },
       metadata: {
-        order_id: order.id,
+        order_id: orderId,
         customer_name: data.customer.customer_name,
         phone: cleanPhone(data.customer.phone),
         momo_number: data.customer.mobile_money_number ? cleanPhone(data.customer.mobile_money_number) : "",
@@ -249,8 +251,8 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     };
 
     const idempotencyKey = existing && existing.status !== "awaiting_payment"
-      ? `${order.id.slice(0, 8)}-${Date.now()}`
-      : (data.client_checkout_id ?? order.id);
+      ? `${orderId.slice(0, 8)}-${Date.now()}`
+      : (data.client_checkout_id ?? orderId);
 
     const response = await fetch("https://api.monime.io/v1/checkout-sessions", {
       method: "POST",
@@ -271,21 +273,19 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     };
     if (!response.ok || !json.result?.redirectUrl) {
       console.error("[monime-checkout] api", response.status, json);
-      await supabaseAdmin
-        .from("orders")
+      await orders
         .update({
           status: "payment_failed",
           payment_failure_reason: json.message ?? "Could not start Monime checkout",
         } as never)
-        .eq("id", order.id);
+        .eq("id", orderId);
       return {
         ok: false as const,
         error: "Could not start secure Monime checkout. Please check the payment number and try again.",
       };
     }
 
-    await supabaseAdmin
-      .from("orders")
+    await orders
       .update({
         monime_session_id: json.result.id ?? null,
         monime_checkout_url: json.result.redirectUrl,
@@ -293,15 +293,15 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         status: "awaiting_payment",
         payment_failure_reason: null,
       } as never)
-      .eq("id", order.id);
+      .eq("id", orderId);
 
-    await supabaseAdmin.from("analytics_events").insert({
+    await analyticsEvents.insert({
       event_type: "checkout_started",
       path: "/checkout",
-      metadata: { order_id: order.id, total_leones: total, provider: "monime", payment_method: data.payment_method } as never,
+      metadata: { order_id: orderId, total_leones: total, provider: "monime", payment_method: data.payment_method } as never,
     });
 
-    return { ok: true as const, url: json.result.redirectUrl, order_id: order.id };
+    return { ok: true as const, url: json.result.redirectUrl, order_id: orderId };
   });
 
 // Verify the order after redirect back from Monime.
@@ -311,9 +311,11 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
     const apiKey = process.env.MONIME_API_KEY;
     const spaceId = process.env.MONIME_SPACE_ID;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = supabaseAdmin.from("orders") as any;
+    const analyticsEvents = supabaseAdmin.from("analytics_events") as any;
+    const orderEvents = supabaseAdmin.from("order_events") as any;
 
-    const { data: order } = await supabaseAdmin
-      .from("orders")
+    const { data: order } = await orders
       .select("id, status, monime_session_id, total_leones, monime_payment_id, delivery_code, rider_commission_pct")
       .eq("id", data.order_id)
       .maybeSingle();
@@ -346,8 +348,7 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
     if (paid && !order.monime_payment_id) {
       const pct = Number(order.rider_commission_pct ?? 15);
       const commission = Math.round(((order.total_leones ?? 0) * pct) / 100);
-      const { error } = await supabaseAdmin
-        .from("orders")
+      const { error } = await orders
         .update({
           status: "paid",
           paid_at: new Date().toISOString(),
@@ -362,12 +363,12 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
         .eq("id", order.id)
         .neq("status", "paid");
       if (!error) {
-        await supabaseAdmin.from("analytics_events").insert({
+        await analyticsEvents.insert({
           event_type: "checkout_completed",
           path: "/order",
           metadata: { order_id: order.id, provider: "monime", via: "verify" } as never,
         });
-        await supabaseAdmin.from("order_events").insert({
+        await orderEvents.insert({
           order_id: order.id,
           event_type: "payment_verified",
           from_status: order.status,
@@ -377,8 +378,7 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
         } as never);
       }
     } else if (failed && order.status === "awaiting_payment") {
-      await supabaseAdmin
-        .from("orders")
+      await orders
         .update({
           status: `payment_${status}`,
           payment_failure_reason: json.message ?? `Monime status: ${status}`,
@@ -396,8 +396,8 @@ export const getOrderStatus = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ order_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: order } = await supabaseAdmin
-      .from("orders")
+    const orders = supabaseAdmin.from("orders") as any;
+    const { data: order } = await orders
       .select("id, status, total_leones, delivery_fee_leones, discount_leones, items, customer_name, customer_email, phone, address, city, district, notes, payment_method, payment_provider, monime_payment_id, monime_transaction_id, monime_order_number, payment_failure_reason, created_at, paid_at, delivered_at, cancelled_at")
       .eq("id", data.order_id)
       .maybeSingle();
