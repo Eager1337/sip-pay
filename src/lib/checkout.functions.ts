@@ -1,11 +1,15 @@
-// Monime Checkout — Orange Money & Afrimoney via Monime hosted checkout.
-// Amounts stored in Sierra Leonean Leones (Le). Monime uses minor units,
-// so we multiply the Leone amount by 100 for the "value" field.
+// Monime Checkout — hosted checkout for Orange Money, Afrimoney and cards.
+// Amounts are stored in Sierra Leonean Leones (Le). Monime uses minor units,
+// so one Leone is sent as value=100.
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
 import { DRINKS } from "@/data/drinks";
+
+const DELIVERY_FEE_WESTERN = 15;
+const DELIVERY_FEE_UPCOUNTRY = 25;
+const BULK_DISCOUNT_MIN = 120;
+const BULK_DISCOUNT_LEONES = 10;
+const MONIME_VERSION = "caph.2025-08-23";
 
 const itemSchema = z.object({
   slug: z.string().max(60),
@@ -14,26 +18,89 @@ const itemSchema = z.object({
   price: z.number().int().min(1).max(100000),
 });
 
-const paymentMethodSchema = z.enum(["orange_money", "afrimoney", "any"]);
+const paymentMethodSchema = z.enum(["orange_money", "afrimoney", "card"]);
+
+const optionalEmailSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z.string().trim().email().max(255).nullable().optional(),
+);
 
 const inputSchema = z.object({
   items: z.array(itemSchema).min(1).max(16),
   customer: z.object({
     customer_name: z.string().min(2).max(100),
+    email: optionalEmailSchema,
     phone: z.string().min(6).max(30),
+    mobile_money_number: z.string().max(30).optional().nullable(),
     address: z.string().min(4).max(300),
+    city: z.string().min(2).max(80),
+    district: z.string().min(2).max(80),
     notes: z.string().max(500).optional().nullable(),
   }),
   origin: z.string().url().max(255),
-  payment_method: paymentMethodSchema.default("any"),
+  client_checkout_id: z.string().uuid().optional().nullable(),
+  payment_method: paymentMethodSchema.default("card"),
 });
 
-function serverSupabase() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
+type CheckoutInput = z.infer<typeof inputSchema>;
+type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
+function cleanPhone(phone: string): string {
+  return phone.replace(/\s+/g, "").trim();
+}
+
+function deliveryFeeFor(district: string): number {
+  const d = district.toLowerCase();
+  return d.includes("western") || d.includes("freetown") ? DELIVERY_FEE_WESTERN : DELIVERY_FEE_UPCOUNTRY;
+}
+
+function priceBreakdown(items: CheckoutInput["items"], district: string) {
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const deliveryFee = deliveryFeeFor(district);
+  const discount = subtotal >= BULK_DISCOUNT_MIN ? BULK_DISCOUNT_LEONES : 0;
+  const total = Math.max(0, subtotal + deliveryFee - discount);
+  return { subtotal, deliveryFee, discount, total };
+}
+
+function monimePaymentOptions(method: PaymentMethod) {
+  if (method === "orange_money") {
+    return {
+      momo: { disable: false, enabledProviders: ["m17"] },
+      card: { disable: true },
+      bank: { disable: true },
+      wallet: { disable: true },
+    };
+  }
+  if (method === "afrimoney") {
+    return {
+      momo: { disable: false, enabledProviders: ["m18"] },
+      card: { disable: true },
+      bank: { disable: true },
+      wallet: { disable: true },
+    };
+  }
+  return {
+    card: { disable: false },
+    momo: { disable: true },
+    bank: { disable: true },
+    wallet: { disable: true },
+  };
+}
+
+function deliveryCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function safeJson(text: string): Record<string, unknown> {
+  try {
+    return text ? JSON.parse(text) as Record<string, unknown> : {};
+  } catch {
+    return { message: text };
+  }
+}
+
+function stringFrom(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 /**
@@ -63,115 +130,178 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     const apiKey = process.env.MONIME_API_KEY;
     const spaceId = process.env.MONIME_SPACE_ID;
     if (!apiKey || !spaceId) {
-      return {
-        ok: false as const,
-        error: "Mobile-money checkout is not configured yet.",
-      };
+      return { ok: false as const, error: "Secure checkout is not configured yet." };
+    }
+
+    if ((data.payment_method === "orange_money" || data.payment_method === "afrimoney") &&
+        !data.customer.mobile_money_number?.trim()) {
+      return { ok: false as const, error: "Enter the mobile money number registered for this wallet." };
     }
 
     const itemErrors = validateItems(data.items);
     if (itemErrors.length > 0) {
-      return {
-        ok: false as const,
-        error: "Some items are unavailable or exceed limits.",
-        itemErrors,
-      };
+      return { ok: false as const, error: "Some items are unavailable or exceed limits.", itemErrors };
     }
 
-    const supabase = serverSupabase();
-    const total = data.items.reduce((s, i) => s + i.price * i.qty, 0);
-    const itemsJson = data.items.map((i) => ({
-      slug: i.slug, name: i.name, qty: i.qty, price: i.price,
-    }));
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = supabaseAdmin.from("orders") as any;
+    const analyticsEvents = supabaseAdmin.from("analytics_events") as any;
+    const { subtotal, deliveryFee, discount, total } = priceBreakdown(data.items, data.customer.district);
+    const itemsJson = data.items.map((i) => ({ slug: i.slug, name: i.name, qty: i.qty, price: i.price }));
 
-    const { data: order, error: insErr } = await supabase
-      .from("orders")
-      .insert({
-        customer_name: data.customer.customer_name,
-        phone: data.customer.phone,
-        address: data.customer.address,
-        notes: data.customer.notes ?? null,
-        items: itemsJson as never,
-        total_leones: total,
-        status: "awaiting_payment",
-        payment_provider: "monime",
-        payment_method: data.payment_method,
-      })
-      .select("id")
-      .single();
-    if (insErr || !order) {
-      console.error("[monime-checkout] order insert", insErr);
-      return { ok: false as const, error: "Could not create order" };
+    let existing: { id: string; status: string; monime_checkout_url: string | null } | null = null;
+    if (data.client_checkout_id) {
+      const { data: row } = await orders
+        .select("id, status, monime_checkout_url")
+        .eq("client_checkout_id", data.client_checkout_id)
+        .maybeSingle();
+      existing = row as { id: string; status: string; monime_checkout_url: string | null } | null;
+      if (existing?.status === "awaiting_payment" && existing.monime_checkout_url) {
+        return { ok: true as const, url: existing.monime_checkout_url, order_id: existing.id, reused: true as const };
+      }
+      if (existing?.status === "paid") {
+        return { ok: true as const, url: `${data.origin}/order/${existing.id}?paid=1`, order_id: existing.id, reused: true as const };
+      }
     }
+
+    const orderPayload = {
+      customer_name: data.customer.customer_name,
+      customer_email: data.customer.email ?? null,
+      phone: cleanPhone(data.customer.phone),
+      address: data.customer.address,
+      city: data.customer.city,
+      district: data.customer.district,
+      notes: data.customer.notes ?? null,
+      items: itemsJson as never,
+      total_leones: total,
+      delivery_fee_leones: deliveryFee,
+      discount_leones: discount,
+      status: "awaiting_payment",
+      payment_provider: "monime",
+      payment_method: data.payment_method,
+      payment_failure_reason: null,
+      client_checkout_id: data.client_checkout_id ?? null,
+    };
+
+    let order: { id: string } | null = existing ? { id: existing.id } : null;
+    if (existing) {
+      const { error } = await orders
+        .update({ ...orderPayload, monime_session_id: null, monime_checkout_url: null } as never)
+        .eq("id", existing.id);
+      if (error) {
+        console.error("[monime-checkout] order retry update", error);
+        return { ok: false as const, error: "Could not prepare this order for retry." };
+      }
+    } else {
+      const { data: inserted, error } = await orders
+        .insert(orderPayload as never)
+        .select("id")
+        .single();
+      if (error || !inserted) {
+        console.error("[monime-checkout] order insert", error);
+        return { ok: false as const, error: "Could not create order" };
+      }
+      order = inserted;
+    }
+
+    if (!order) return { ok: false as const, error: "Could not create order" };
+    const orderId = order.id;
 
     const lineItems = data.items.map((it) => ({
       name: it.name,
       type: "custom" as const,
       quantity: it.qty,
       reference: it.slug,
-      price: { currency: "SLE", value: it.price * it.qty * 100 },
+      description: DRINKS.find((drink) => drink.slug === it.slug)?.volume,
+      price: { currency: "SLE", value: it.price * 100 },
     }));
 
+    const netDeliveryFee = Math.max(0, deliveryFee - discount);
+    if (netDeliveryFee > 0) {
+      lineItems.push({
+        name: discount > 0 ? "Delivery fee after discount" : "Delivery fee",
+        type: "custom" as const,
+        quantity: 1,
+        reference: "delivery",
+        description: discount > 0 ? `Delivery Le ${deliveryFee}, discount Le ${discount}` : "Local delivery",
+        price: { currency: "SLE", value: netDeliveryFee * 100 },
+      });
+    }
+
     const body = {
-      name: `KK Drinks order #${order.id.slice(0, 8)}`,
+      name: `KK Drinks order #${orderId.slice(0, 8)}`,
       description: `Order for ${data.customer.customer_name}`,
       lineItems,
-      reference: order.id,
-      callbackState: order.id,
-      successUrl: `${data.origin}/order/${order.id}?paid=1`,
-      cancelUrl: `${data.origin}/order/${order.id}?cancelled=1`,
-      paymentOptions: {
-        momo: { disable: false },
-        card: { disable: true },
-        bank: { disable: true },
-      },
+      reference: orderId,
+      callbackState: orderId,
+      successUrl: `${data.origin}/order/${orderId}?paid=1`,
+      cancelUrl: `${data.origin}/order/${orderId}?cancelled=1`,
+      paymentOptions: monimePaymentOptions(data.payment_method),
+      brandingOptions: { primaryColor: "#148C8C" },
       metadata: {
-        order_id: order.id,
+        order_id: orderId,
         customer_name: data.customer.customer_name,
-        phone: data.customer.phone,
+        phone: cleanPhone(data.customer.phone),
+        momo_number: data.customer.mobile_money_number ? cleanPhone(data.customer.mobile_money_number) : "",
         payment_method: data.payment_method,
+        subtotal_leones: String(subtotal),
+        delivery_fee_leones: String(deliveryFee),
+        discount_leones: String(discount),
       },
     };
 
-    const r = await fetch("https://api.monime.io/v1/checkout-sessions", {
+    const idempotencyKey = existing && existing.status !== "awaiting_payment"
+      ? `${orderId.slice(0, 8)}-${Date.now()}`
+      : (data.client_checkout_id ?? orderId);
+
+    const response = await fetch("https://api.monime.io/v1/checkout-sessions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "Idempotency-Key": order.id,
+        "Idempotency-Key": idempotencyKey,
         "Monime-Space-Id": spaceId,
+        "Monime-Version": MONIME_VERSION,
       },
       body: JSON.stringify(body),
     });
-    const json = await r.json() as {
+    const json = safeJson(await response.text()) as {
       success?: boolean;
+      message?: string;
       messages?: unknown;
-      result?: { id?: string; redirectUrl?: string };
+      result?: { id?: string; redirectUrl?: string; orderNumber?: string; status?: string };
     };
-    if (!r.ok || !json.result?.redirectUrl) {
-      console.error("[monime-checkout] api", r.status, json);
+    if (!response.ok || !json.result?.redirectUrl) {
+      console.error("[monime-checkout] api", response.status, json);
+      await orders
+        .update({
+          status: "payment_failed",
+          payment_failure_reason: json.message ?? "Could not start Monime checkout",
+        } as never)
+        .eq("id", orderId);
       return {
         ok: false as const,
-        error: "Could not start mobile-money checkout. Please try again.",
+        error: "Could not start secure Monime checkout. Please check the payment number and try again.",
       };
     }
 
-    await supabase
-      .from("orders")
-      .update({ monime_session_id: json.result.id ?? null })
-      .eq("id", order.id);
+    await orders
+      .update({
+        monime_session_id: json.result.id ?? null,
+        monime_checkout_url: json.result.redirectUrl,
+        monime_order_number: json.result.orderNumber ?? null,
+        status: "awaiting_payment",
+        payment_failure_reason: null,
+      } as never)
+      .eq("id", orderId);
 
-    await supabase.from("analytics_events").insert({
+    await analyticsEvents.insert({
       event_type: "checkout_started",
       path: "/checkout",
-      metadata: { order_id: order.id, total_leones: total, provider: "monime" } as never,
+      metadata: { order_id: orderId, total_leones: total, provider: "monime", payment_method: data.payment_method } as never,
     });
 
-    return {
-      ok: true as const,
-      url: json.result.redirectUrl,
-      order_id: order.id,
-    };
+    return { ok: true as const, url: json.result.redirectUrl, order_id: orderId };
   });
 
 // Verify the order after redirect back from Monime.
@@ -180,80 +310,95 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const apiKey = process.env.MONIME_API_KEY;
     const spaceId = process.env.MONIME_SPACE_ID;
-    const supabase = serverSupabase();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = supabaseAdmin.from("orders") as any;
+    const analyticsEvents = supabaseAdmin.from("analytics_events") as any;
+    const orderEvents = supabaseAdmin.from("order_events") as any;
 
-    const { data: order } = await supabase
-      .from("orders")
-      .select("id, status, monime_session_id, total_leones, monime_payment_id")
+    const { data: order } = await orders
+      .select("id, status, monime_session_id, total_leones, monime_payment_id, delivery_code, rider_commission_pct")
       .eq("id", data.order_id)
       .maybeSingle();
 
-    if (!order) return { paid: false, status: "unknown" };
-    if (order.status === "paid") return { paid: true, status: "paid" };
+    if (!order) return { paid: false, status: "unknown", reason: null };
+    if (order.status === "paid") return { paid: true, status: "paid", reason: null };
+    if (!apiKey || !spaceId || !order.monime_session_id) return { paid: false, status: order.status, reason: null };
 
-    if (!apiKey || !spaceId || !order.monime_session_id) {
-      return { paid: false, status: order.status };
-    }
-
-    const r = await fetch(
+    const response = await fetch(
       `https://api.monime.io/v1/checkout-sessions/${encodeURIComponent(order.monime_session_id)}`,
       {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Monime-Space-Id": spaceId,
+          "Monime-Version": MONIME_VERSION,
         },
       },
     );
-    const json = await r.json() as {
-      result?: { status?: string; paymentId?: string };
-    };
-    const status = (json.result?.status ?? "").toLowerCase();
+    const json = safeJson(await response.text()) as { result?: Record<string, unknown>; message?: string };
+    const result = json.result ?? {};
+    const status = String(result.status ?? "").toLowerCase();
     const paid = status === "completed" || status === "paid";
     const failed = status === "failed" || status === "cancelled" || status === "expired";
+    const transactionId =
+      stringFrom(result.paymentId) ??
+      stringFrom(result.transactionId) ??
+      stringFrom(result.orderNumber) ??
+      order.monime_session_id;
 
     if (paid && !order.monime_payment_id) {
-      // Idempotent: unique index on monime_payment_id prevents double-mark
-      const deliveryCode = String(Math.floor(100000 + Math.random() * 900000));
-      const commission = Math.round(((order.total_leones ?? 0) * 15) / 100);
-      const { error } = await supabase
-        .from("orders")
+      const pct = Number(order.rider_commission_pct ?? 15);
+      const commission = Math.round(((order.total_leones ?? 0) * pct) / 100);
+      const { error } = await orders
         .update({
           status: "paid",
           paid_at: new Date().toISOString(),
-          monime_payment_id: json.result?.paymentId ?? null,
-          delivery_code: deliveryCode,
-          rider_commission_pct: 15,
+          monime_payment_id: transactionId,
+          monime_transaction_id: transactionId,
+          monime_order_number: stringFrom(result.orderNumber),
+          delivery_code: order.delivery_code ?? deliveryCode(),
+          rider_commission_pct: pct,
           rider_commission_leones: commission,
+          payment_failure_reason: null,
         } as never)
         .eq("id", order.id)
-        .eq("status", "awaiting_payment"); // only flip if still pending
+        .neq("status", "paid");
       if (!error) {
-        await supabase.from("analytics_events").insert({
+        await analyticsEvents.insert({
           event_type: "checkout_completed",
           path: "/order",
           metadata: { order_id: order.id, provider: "monime", via: "verify" } as never,
         });
+        await orderEvents.insert({
+          order_id: order.id,
+          event_type: "payment_verified",
+          from_status: order.status,
+          to_status: "paid",
+          note: "Monime checkout verification confirmed payment",
+          meta: { transaction_id: transactionId, order_number: stringFrom(result.orderNumber) } as never,
+        } as never);
       }
     } else if (failed && order.status === "awaiting_payment") {
-      await supabase
-        .from("orders")
-        .update({ status: `payment_${status}` })
+      await orders
+        .update({
+          status: `payment_${status}`,
+          payment_failure_reason: json.message ?? `Monime status: ${status}`,
+        } as never)
         .eq("id", order.id)
         .eq("status", "awaiting_payment");
     }
 
-    return { paid, status };
+    return { paid, status, transaction_id: transactionId, reason: json.message ?? null };
   });
 
 // Lightweight public order read — used by /order/:id status page.
-// Guarded by knowing the uuid; RLS "Anyone can read an order by id" allows it.
+// Guarded by knowing the uuid; returns only customer-facing order details.
 export const getOrderStatus = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ order_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const supabase = serverSupabase();
-    const { data: order } = await supabase
-      .from("orders")
-      .select("id, status, total_leones, items, customer_name, phone, address, notes, payment_method, payment_provider, created_at, paid_at, delivered_at, cancelled_at")
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = supabaseAdmin.from("orders") as any;
+    const { data: order } = await orders
+      .select("id, status, total_leones, delivery_fee_leones, discount_leones, items, customer_name, customer_email, phone, address, city, district, notes, payment_method, payment_provider, monime_payment_id, monime_transaction_id, monime_order_number, payment_failure_reason, created_at, paid_at, delivered_at, cancelled_at")
       .eq("id", data.order_id)
       .maybeSingle();
     return order;
