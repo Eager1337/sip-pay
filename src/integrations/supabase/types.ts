@@ -91,18 +91,26 @@ export type Database = {
           address: string
           admin_notes: string | null
           cancelled_at: string | null
+          city: string | null
           created_at: string
           customer_confirmed_at: string | null
+          customer_email: string | null
           customer_name: string
           delivered_at: string | null
           delivery_code: string | null
+          delivery_fee_leones: number
+          discount_leones: number
+          district: string | null
           id: string
           items: Json
+          monime_order_number: string | null
           monime_payment_id: string | null
           monime_session_id: string | null
+          monime_transaction_id: string | null
           notes: string | null
           out_for_delivery_at: string | null
           paid_at: string | null
+          payment_failure_reason: string | null
           payment_method: string | null
           payment_provider: string | null
           phone: string
@@ -118,18 +126,26 @@ export type Database = {
           address: string
           admin_notes?: string | null
           cancelled_at?: string | null
+          city?: string | null
           created_at?: string
           customer_confirmed_at?: string | null
+          customer_email?: string | null
           customer_name: string
           delivered_at?: string | null
           delivery_code?: string | null
+          delivery_fee_leones?: number
+          discount_leones?: number
+          district?: string | null
           id?: string
           items: Json
+          monime_order_number?: string | null
           monime_payment_id?: string | null
           monime_session_id?: string | null
+          monime_transaction_id?: string | null
           notes?: string | null
           out_for_delivery_at?: string | null
           paid_at?: string | null
+          payment_failure_reason?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           phone: string
@@ -145,18 +161,26 @@ export type Database = {
           address?: string
           admin_notes?: string | null
           cancelled_at?: string | null
+          city?: string | null
           created_at?: string
           customer_confirmed_at?: string | null
+          customer_email?: string | null
           customer_name?: string
           delivered_at?: string | null
           delivery_code?: string | null
+          delivery_fee_leones?: number
+          discount_leones?: number
+          district?: string | null
           id?: string
           items?: Json
+          monime_order_number?: string | null
           monime_payment_id?: string | null
           monime_session_id?: string | null
+          monime_transaction_id?: string | null
           notes?: string | null
           out_for_delivery_at?: string | null
           paid_at?: string | null
+          payment_failure_reason?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           phone?: string
