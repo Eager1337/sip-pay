@@ -105,6 +105,7 @@ export type Database = {
           district: string | null
           id: string
           items: Json
+          monime_checkout_url: string | null
           monime_order_number: string | null
           monime_payment_id: string | null
           monime_session_id: string | null
@@ -142,6 +143,7 @@ export type Database = {
           district?: string | null
           id?: string
           items: Json
+          monime_checkout_url?: string | null
           monime_order_number?: string | null
           monime_payment_id?: string | null
           monime_session_id?: string | null
@@ -179,6 +181,7 @@ export type Database = {
           district?: string | null
           id?: string
           items?: Json
+          monime_checkout_url?: string | null
           monime_order_number?: string | null
           monime_payment_id?: string | null
           monime_session_id?: string | null
