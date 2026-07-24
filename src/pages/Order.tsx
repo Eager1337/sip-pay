@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download } from "lucide-react";
 import { Layout } from "@/components/site/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { verifyCheckoutSession, getOrderStatus } from "@/lib/checkout.functions";
 import { getOrderPublicExtras, customerConfirmReceipt } from "@/lib/delivery.functions";
+import { downloadReceipt } from "@/lib/receipt";
 import { toast } from "sonner";
 
 type OrderRow = {
