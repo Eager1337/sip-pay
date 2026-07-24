@@ -30,6 +30,21 @@ export const trackOrder = createServerFn({ method: "POST" })
     return { orders: rows ?? [] };
   });
 
+// List all orders for a phone number — used by the buyer dashboard.
+export const listMyOrders = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ phone: z.string().min(6).max(30) }).parse(d))
+  .handler(async ({ data }) => {
+    const supabase = serverSupabase();
+    const phoneClean = data.phone.replace(/\s+/g, "");
+    const { data: rows } = await supabase
+      .from("orders")
+      .select("id, status, total_leones, delivery_fee_leones, discount_leones, items, payment_method, created_at, paid_at, delivered_at, cancelled_at, address, city, district, delivery_code")
+      .eq("phone", phoneClean)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    return { orders: rows ?? [] };
+  });
+
 export const createCodOrder = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     items: z.array(z.object({
