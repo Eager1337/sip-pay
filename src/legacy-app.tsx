@@ -26,6 +26,7 @@ const Delivery = lazy(() => import("./pages/Delivery"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Order = lazy(() => import("./pages/Order"));
 const Track = lazy(() => import("./pages/Track"));
+const Account = lazy(() => import("./pages/Account"));
 
 const Fallback = () => <div className="min-h-screen bg-[hsl(var(--paper))]" />;
 
