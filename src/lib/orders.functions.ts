@@ -41,8 +41,26 @@ export const listMyOrders = createServerFn({ method: "POST" })
       .eq("phone", phoneClean)
       .order("created_at", { ascending: false })
       .limit(50);
-    return { orders: (rows ?? []) as Array<Record<string, unknown>> };
+    return { orders: (rows ?? []) as MyOrderRow[] };
   });
+
+export type MyOrderRow = {
+  id: string;
+  status: string;
+  total_leones: number;
+  delivery_fee_leones: number | null;
+  discount_leones: number | null;
+  items: Array<{ slug: string; name: string; qty: number; price: number }>;
+  payment_method: string | null;
+  created_at: string;
+  paid_at: string | null;
+  delivered_at: string | null;
+  cancelled_at: string | null;
+  address: string;
+  city: string | null;
+  district: string | null;
+  delivery_code: string | null;
+};
 
 export const createCodOrder = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
