@@ -43,6 +43,7 @@ export const Footer = () => (
         <span>© {new Date().getFullYear()} KK Drinks Sierra Leone. NAFDAC & SLSB approved.</span>
         <div className="flex gap-5 items-center">
           <Link to="/track" className="hover:text-white">Track order</Link>
+          <Link to="/account" className="hover:text-white">My orders</Link>
           <Link to="/delivery" className="hover:text-white inline-flex items-center gap-1"><Bike className="h-3 w-3" /> Rider portal</Link>
           <Link to="/wholesale" className="hover:text-white">Stockists</Link>
           <Link to="/admin" className="hover:text-white inline-flex items-center gap-1 opacity-60 hover:opacity-100"><Shield className="h-3 w-3" /> Admin</Link>

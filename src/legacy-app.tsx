@@ -26,6 +26,7 @@ const Delivery = lazy(() => import("./pages/Delivery"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Order = lazy(() => import("./pages/Order"));
 const Track = lazy(() => import("./pages/Track"));
+const Account = lazy(() => import("./pages/Account"));
 
 const Fallback = () => <div className="min-h-screen bg-[hsl(var(--paper))]" />;
 
@@ -57,6 +58,8 @@ const LegacyApp = () => (
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order/:id" element={<Order />} />
             <Route path="/track" element={<Track />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/account/orders" element={<Account />} />
             <Route path="/mango" element={<Mango />} />
             <Route path="/orange" element={<Orange />} />
             <Route path="/mixed-fruit" element={<MixedFruit />} />

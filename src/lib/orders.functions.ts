@@ -30,6 +30,38 @@ export const trackOrder = createServerFn({ method: "POST" })
     return { orders: rows ?? [] };
   });
 
+// List all orders for a phone number — used by the buyer dashboard.
+export const listMyOrders = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ phone: z.string().min(6).max(30) }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const phoneClean = data.phone.replace(/\s+/g, "");
+    const { data: rows } = await (supabaseAdmin.from("orders") as any)
+      .select("id, status, total_leones, delivery_fee_leones, discount_leones, items, payment_method, created_at, paid_at, delivered_at, cancelled_at, address, city, district, delivery_code")
+      .eq("phone", phoneClean)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    return { orders: (rows ?? []) as MyOrderRow[] };
+  });
+
+export type MyOrderRow = {
+  id: string;
+  status: string;
+  total_leones: number;
+  delivery_fee_leones: number | null;
+  discount_leones: number | null;
+  items: Array<{ slug: string; name: string; qty: number; price: number }>;
+  payment_method: string | null;
+  created_at: string;
+  paid_at: string | null;
+  delivered_at: string | null;
+  cancelled_at: string | null;
+  address: string;
+  city: string | null;
+  district: string | null;
+  delivery_code: string | null;
+};
+
 export const createCodOrder = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     items: z.array(z.object({

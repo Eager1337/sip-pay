@@ -2,25 +2,33 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download } from "lucide-react";
 import { Layout } from "@/components/site/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { verifyCheckoutSession, getOrderStatus } from "@/lib/checkout.functions";
 import { getOrderPublicExtras, customerConfirmReceipt } from "@/lib/delivery.functions";
+import { downloadReceipt } from "@/lib/receipt";
 import { toast } from "sonner";
 
 type OrderRow = {
   id: string;
   status: string;
   total_leones: number;
+  delivery_fee_leones?: number | null;
+  discount_leones?: number | null;
   items: Array<{ slug: string; name: string; qty: number; price: number }>;
   customer_name: string;
   phone: string;
   address: string;
+  city?: string | null;
+  district?: string | null;
   notes: string | null;
   payment_method: string | null;
   payment_provider: string | null;
+  monime_transaction_id?: string | null;
+  monime_order_number?: string | null;
+  payment_failure_reason?: string | null;
   created_at: string;
   paid_at: string | null;
   delivered_at: string | null;
@@ -239,8 +247,24 @@ const OrderPage = () => {
                 )}
               </div>
 
-              <div className="flex gap-3">
+              {order.payment_failure_reason && (order.status === "payment_failed" || order.status === "payment_cancelled" || order.status === "payment_expired") && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                  <div className="font-semibold mb-1">Why the payment did not go through</div>
+                  <div>{order.payment_failure_reason}</div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
                 <Link to="/store"><Button variant="outline">Keep shopping</Button></Link>
+                <Link to="/account"><Button variant="outline">My orders</Button></Link>
+                {order.status === "paid" || order.status === "out_for_delivery" || order.status === "delivered" ? (
+                  <Button variant="outline" onClick={() => downloadReceipt({
+                    ...order,
+                    delivery_code: extras?.delivery_code ?? null,
+                  })}>
+                    <Download className="h-4 w-4 mr-2" /> Download receipt
+                  </Button>
+                ) : null}
                 {(order.status === "payment_failed" || order.status === "payment_cancelled" || order.status === "payment_expired") && (
                   <Link to="/checkout"><Button className="bg-[hsl(var(--sea))]">Retry payment</Button></Link>
                 )}
