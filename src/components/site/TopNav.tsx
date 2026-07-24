@@ -10,6 +10,7 @@ const links = [
   { to: "/about", label: "Our Story" },
   { to: "/support", label: "Contact" },
   { to: "/track", label: "Track" },
+  { to: "/account", label: "My Orders" },
 ];
 
 export const TopNav = () => {
