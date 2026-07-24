@@ -247,8 +247,24 @@ const OrderPage = () => {
                 )}
               </div>
 
-              <div className="flex gap-3">
+              {order.payment_failure_reason && (order.status === "payment_failed" || order.status === "payment_cancelled" || order.status === "payment_expired") && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                  <div className="font-semibold mb-1">Why the payment did not go through</div>
+                  <div>{order.payment_failure_reason}</div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
                 <Link to="/store"><Button variant="outline">Keep shopping</Button></Link>
+                <Link to="/account"><Button variant="outline">My orders</Button></Link>
+                {order.status === "paid" || order.status === "out_for_delivery" || order.status === "delivered" ? (
+                  <Button variant="outline" onClick={() => downloadReceipt({
+                    ...order,
+                    delivery_code: extras?.delivery_code ?? null,
+                  })}>
+                    <Download className="h-4 w-4 mr-2" /> Download receipt
+                  </Button>
+                ) : null}
                 {(order.status === "payment_failed" || order.status === "payment_cancelled" || order.status === "payment_expired") && (
                   <Link to="/checkout"><Button className="bg-[hsl(var(--sea))]">Retry payment</Button></Link>
                 )}
