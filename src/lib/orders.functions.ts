@@ -70,28 +70,48 @@ export const createCodOrder = createServerFn({ method: "POST" })
     })).min(1).max(16),
     customer: z.object({
       customer_name: z.string().min(2).max(100),
+      email: z.preprocess(
+        (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+        z.string().trim().email().max(255).nullable().optional(),
+      ),
       phone: z.string().min(6).max(30),
       address: z.string().min(4).max(300),
+      city: z.string().max(80).optional().nullable(),
+      district: z.string().max(80).optional().nullable(),
       notes: z.string().max(500).optional().nullable(),
     }),
   }).parse(d))
   .handler(async ({ data }) => {
-    const supabase = serverSupabase();
-    const total = data.items.reduce((s, i) => s + i.price * i.qty, 0);
-    const { data: order, error } = await supabase
-      .from("orders")
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = supabaseAdmin.from("orders") as any;
+    const district = (data.customer.district ?? "").toLowerCase();
+    const deliveryFee = district.includes("western") || district.includes("freetown") ? 15 : 25;
+    const subtotal = data.items.reduce((s, i) => s + i.price * i.qty, 0);
+    const discount = subtotal >= 120 ? 10 : 0;
+    const total = Math.max(0, subtotal + deliveryFee - discount);
+    const { data: order, error } = await orders
       .insert({
         customer_name: data.customer.customer_name,
-        phone: data.customer.phone,
+        customer_email: data.customer.email ?? null,
+        phone: data.customer.phone.replace(/\s+/g, ""),
         address: data.customer.address,
+        city: data.customer.city ?? null,
+        district: data.customer.district ?? null,
         notes: data.customer.notes ?? null,
         items: data.items as never,
         total_leones: total,
+        delivery_fee_leones: deliveryFee,
+        discount_leones: discount,
         status: "cod_pending",
         payment_method: "cod",
-      })
-      .select("id")
+        delivery_code: String(Math.floor(100000 + Math.random() * 900000)),
+      } as never)
+      .select("id, delivery_code")
       .single();
-    if (error || !order) return { ok: false as const, error: "Could not place order" };
-    return { ok: true as const, order_id: order.id };
+    if (error || !order) {
+      console.error("[cod-order]", error);
+      return { ok: false as const, error: "We could not place this order. Please try again." };
+    }
+    return { ok: true as const, order_id: order.id as string, total_leones: total };
   });
+

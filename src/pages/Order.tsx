@@ -1,14 +1,18 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download, MessageCircle, Mail, RotateCcw, Bell } from "lucide-react";
 import { Layout } from "@/components/site/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { verifyCheckoutSession, getOrderStatus } from "@/lib/checkout.functions";
 import { getOrderPublicExtras, customerConfirmReceipt } from "@/lib/delivery.functions";
-import { downloadReceipt } from "@/lib/receipt";
+import { downloadReceipt, receiptHtml } from "@/lib/receipt";
+import {
+  ADMIN_EMAIL, ADMIN_WHATSAPP, DELIVERY_STATUS_TEXT, askBrowserNotifications,
+  browserNotify, mailtoUrl, openWhatsApp, orderMessage, paymentLabel,
+} from "@/lib/notify";
 import { toast } from "sonner";
 
 type OrderRow = {
@@ -19,6 +23,7 @@ type OrderRow = {
   discount_leones?: number | null;
   items: Array<{ slug: string; name: string; qty: number; price: number }>;
   customer_name: string;
+  customer_email?: string | null;
   phone: string;
   address: string;
   city?: string | null;
@@ -108,6 +113,50 @@ const OrderPage = () => {
     return () => { cancelled = true; clearInterval(interval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Notify the buyer (browser notification + toast) whenever delivery status moves.
+  const prevStatus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!order) return;
+    if (prevStatus.current && prevStatus.current !== order.status) {
+      const text = DELIVERY_STATUS_TEXT[order.status] ?? `Status: ${order.status.replace(/_/g, " ")}`;
+      toast.info(text);
+      browserNotify(`Order #${order.id.slice(0, 8).toUpperCase()}`, text);
+    }
+    prevStatus.current = order.status;
+  }, [order?.status]);
+
+  // Once an order reaches a confirmed state, prepare the WhatsApp copies.
+  const receiptOrder = order
+    ? { ...order, delivery_code: extras?.delivery_code ?? null }
+    : null;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const buyerMsg = receiptOrder ? orderMessage(receiptOrder, { origin }) : "";
+  const adminMsg = receiptOrder ? orderMessage(receiptOrder, { origin, forAdmin: true }) : "";
+
+  // Auto-send the admin WhatsApp copy once per confirmed order.
+  useEffect(() => {
+    if (!order || !adminMsg) return;
+    const confirmed = ["paid", "cod_pending", "out_for_delivery", "delivered"].includes(order.status);
+    if (!confirmed) return;
+    const key = `kk-admin-notified-${order.id}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, "1");
+    void askBrowserNotifications();
+    openWhatsApp(ADMIN_WHATSAPP, adminMsg);
+  }, [order?.status, adminMsg]);
+
+  const resendReceipt = () => {
+    if (!receiptOrder) return;
+    downloadReceipt(receiptOrder);
+    toast.success("Receipt regenerated — check your downloads.");
+  };
+
+  const openReceiptTab = () => {
+    if (!receiptOrder) return;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(receiptHtml(receiptOrder)); w.document.close(); }
+  };
 
   const copyCode = () => {
     if (!extras?.delivery_code) return;
@@ -243,7 +292,7 @@ const OrderPage = () => {
                 <div><span className="text-muted-foreground">Address:</span> {order.address}</div>
                 {order.notes && <div><span className="text-muted-foreground">Notes:</span> {order.notes}</div>}
                 {order.payment_method && (
-                  <div><span className="text-muted-foreground">Payment:</span> {order.payment_method.replace("_", " ")}</div>
+                  <div><span className="text-muted-foreground">Payment:</span> {paymentLabel(order.payment_method)}</div>
                 )}
               </div>
 
@@ -254,21 +303,50 @@ const OrderPage = () => {
                 </div>
               )}
 
+              {["paid", "cod_pending", "out_for_delivery", "delivered"].includes(order.status) && (
+                <div className="rounded-xl border bg-white p-6 space-y-3">
+                  <h2 className="display text-xl">Receipt & notifications</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Regenerate your receipt any time, send a copy to your WhatsApp or email, and get alerts as your
+                    delivery status changes.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button variant="outline" onClick={resendReceipt}>
+                      <RotateCcw className="h-4 w-4 mr-2" /> Resend receipt
+                    </Button>
+                    <Button variant="outline" onClick={openReceiptTab}>
+                      <Download className="h-4 w-4 mr-2" /> View / print receipt
+                    </Button>
+                    <Button variant="outline" onClick={() => openWhatsApp(order.phone, buyerMsg)}>
+                      <MessageCircle className="h-4 w-4 mr-2" /> Send to my WhatsApp
+                    </Button>
+                    <a href={mailtoUrl(order.customer_email ?? "", `KK Drinks receipt #${order.id.slice(0, 8).toUpperCase()}`, buyerMsg)}>
+                      <Button variant="outline"><Mail className="h-4 w-4 mr-2" /> Email me a copy</Button>
+                    </a>
+                    <Button variant="outline" onClick={() => openWhatsApp(ADMIN_WHATSAPP, adminMsg)}>
+                      <MessageCircle className="h-4 w-4 mr-2" /> Notify KK Drinks
+                    </Button>
+                    <a href={mailtoUrl(ADMIN_EMAIL, `KK Drinks order #${order.id.slice(0, 8).toUpperCase()}`, adminMsg)}>
+                      <Button variant="outline"><Mail className="h-4 w-4 mr-2" /> Email KK Drinks</Button>
+                    </a>
+                    <Button variant="outline" onClick={async () => {
+                      const ok = await askBrowserNotifications();
+                      toast[ok ? "success" : "info"](ok ? "Delivery alerts turned on." : "Allow notifications in your browser to get delivery alerts.");
+                    }}>
+                      <Bell className="h-4 w-4 mr-2" /> Turn on delivery alerts
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-3">
                 <Link to="/store"><Button variant="outline">Keep shopping</Button></Link>
                 <Link to="/account"><Button variant="outline">My orders</Button></Link>
-                {order.status === "paid" || order.status === "out_for_delivery" || order.status === "delivered" ? (
-                  <Button variant="outline" onClick={() => downloadReceipt({
-                    ...order,
-                    delivery_code: extras?.delivery_code ?? null,
-                  })}>
-                    <Download className="h-4 w-4 mr-2" /> Download receipt
-                  </Button>
-                ) : null}
                 {(order.status === "payment_failed" || order.status === "payment_cancelled" || order.status === "payment_expired") && (
                   <Link to="/checkout"><Button className="bg-[hsl(var(--sea))]">Retry payment</Button></Link>
                 )}
               </div>
+
             </>
           )}
         </div>
