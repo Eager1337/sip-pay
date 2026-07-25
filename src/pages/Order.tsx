@@ -302,21 +302,50 @@ const OrderPage = () => {
                 </div>
               )}
 
+              {["paid", "cod_pending", "out_for_delivery", "delivered"].includes(order.status) && (
+                <div className="rounded-xl border bg-white p-6 space-y-3">
+                  <h2 className="display text-xl">Receipt & notifications</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Regenerate your receipt any time, send a copy to your WhatsApp or email, and get alerts as your
+                    delivery status changes.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button variant="outline" onClick={resendReceipt}>
+                      <RotateCcw className="h-4 w-4 mr-2" /> Resend receipt
+                    </Button>
+                    <Button variant="outline" onClick={openReceiptTab}>
+                      <Download className="h-4 w-4 mr-2" /> View / print receipt
+                    </Button>
+                    <Button variant="outline" onClick={() => openWhatsApp(order.phone, buyerMsg)}>
+                      <MessageCircle className="h-4 w-4 mr-2" /> Send to my WhatsApp
+                    </Button>
+                    <a href={mailtoUrl(order.customer_email ?? "", `KK Drinks receipt #${order.id.slice(0, 8).toUpperCase()}`, buyerMsg)}>
+                      <Button variant="outline"><Mail className="h-4 w-4 mr-2" /> Email me a copy</Button>
+                    </a>
+                    <Button variant="outline" onClick={() => openWhatsApp(ADMIN_WHATSAPP, adminMsg)}>
+                      <MessageCircle className="h-4 w-4 mr-2" /> Notify KK Drinks
+                    </Button>
+                    <a href={mailtoUrl(ADMIN_EMAIL, `KK Drinks order #${order.id.slice(0, 8).toUpperCase()}`, adminMsg)}>
+                      <Button variant="outline"><Mail className="h-4 w-4 mr-2" /> Email KK Drinks</Button>
+                    </a>
+                    <Button variant="outline" onClick={async () => {
+                      const ok = await askBrowserNotifications();
+                      toast[ok ? "success" : "info"](ok ? "Delivery alerts turned on." : "Allow notifications in your browser to get delivery alerts.");
+                    }}>
+                      <Bell className="h-4 w-4 mr-2" /> Turn on delivery alerts
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-3">
                 <Link to="/store"><Button variant="outline">Keep shopping</Button></Link>
                 <Link to="/account"><Button variant="outline">My orders</Button></Link>
-                {order.status === "paid" || order.status === "out_for_delivery" || order.status === "delivered" ? (
-                  <Button variant="outline" onClick={() => downloadReceipt({
-                    ...order,
-                    delivery_code: extras?.delivery_code ?? null,
-                  })}>
-                    <Download className="h-4 w-4 mr-2" /> Download receipt
-                  </Button>
-                ) : null}
                 {(order.status === "payment_failed" || order.status === "payment_cancelled" || order.status === "payment_expired") && (
                   <Link to="/checkout"><Button className="bg-[hsl(var(--sea))]">Retry payment</Button></Link>
                 )}
               </div>
+
             </>
           )}
         </div>
