@@ -23,6 +23,7 @@ type OrderRow = {
   discount_leones?: number | null;
   items: Array<{ slug: string; name: string; qty: number; price: number }>;
   customer_name: string;
+  customer_email?: string | null;
   phone: string;
   address: string;
   city?: string | null;
