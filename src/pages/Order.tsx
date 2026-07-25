@@ -1,14 +1,18 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download, MessageCircle, Mail, RotateCcw, Bell } from "lucide-react";
 import { Layout } from "@/components/site/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { verifyCheckoutSession, getOrderStatus } from "@/lib/checkout.functions";
 import { getOrderPublicExtras, customerConfirmReceipt } from "@/lib/delivery.functions";
-import { downloadReceipt } from "@/lib/receipt";
+import { downloadReceipt, receiptHtml } from "@/lib/receipt";
+import {
+  ADMIN_EMAIL, ADMIN_WHATSAPP, DELIVERY_STATUS_TEXT, askBrowserNotifications,
+  browserNotify, mailtoUrl, openWhatsApp, orderMessage, paymentLabel,
+} from "@/lib/notify";
 import { toast } from "sonner";
 
 type OrderRow = {
@@ -108,6 +112,50 @@ const OrderPage = () => {
     return () => { cancelled = true; clearInterval(interval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Notify the buyer (browser notification + toast) whenever delivery status moves.
+  const prevStatus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!order) return;
+    if (prevStatus.current && prevStatus.current !== order.status) {
+      const text = DELIVERY_STATUS_TEXT[order.status] ?? `Status: ${order.status.replace(/_/g, " ")}`;
+      toast.info(text);
+      browserNotify(`Order #${order.id.slice(0, 8).toUpperCase()}`, text);
+    }
+    prevStatus.current = order.status;
+  }, [order?.status]);
+
+  // Once an order reaches a confirmed state, prepare the WhatsApp copies.
+  const receiptOrder = order
+    ? { ...order, delivery_code: extras?.delivery_code ?? null }
+    : null;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const buyerMsg = receiptOrder ? orderMessage(receiptOrder, { origin }) : "";
+  const adminMsg = receiptOrder ? orderMessage(receiptOrder, { origin, forAdmin: true }) : "";
+
+  // Auto-send the admin WhatsApp copy once per confirmed order.
+  useEffect(() => {
+    if (!order || !adminMsg) return;
+    const confirmed = ["paid", "cod_pending", "out_for_delivery", "delivered"].includes(order.status);
+    if (!confirmed) return;
+    const key = `kk-admin-notified-${order.id}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, "1");
+    void askBrowserNotifications();
+    openWhatsApp(ADMIN_WHATSAPP, adminMsg);
+  }, [order?.status, adminMsg]);
+
+  const resendReceipt = () => {
+    if (!receiptOrder) return;
+    downloadReceipt(receiptOrder);
+    toast.success("Receipt regenerated — check your downloads.");
+  };
+
+  const openReceiptTab = () => {
+    if (!receiptOrder) return;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(receiptHtml(receiptOrder)); w.document.close(); }
+  };
 
   const copyCode = () => {
     if (!extras?.delivery_code) return;
@@ -243,7 +291,7 @@ const OrderPage = () => {
                 <div><span className="text-muted-foreground">Address:</span> {order.address}</div>
                 {order.notes && <div><span className="text-muted-foreground">Notes:</span> {order.notes}</div>}
                 {order.payment_method && (
-                  <div><span className="text-muted-foreground">Payment:</span> {order.payment_method.replace("_", " ")}</div>
+                  <div><span className="text-muted-foreground">Payment:</span> {paymentLabel(order.payment_method)}</div>
                 )}
               </div>
 
