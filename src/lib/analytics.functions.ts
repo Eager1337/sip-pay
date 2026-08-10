@@ -17,12 +17,14 @@ export const getAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => inputSchema.parse(d))
   .handler(async ({ data, context }) => {
-    // Require admin
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
+    // Require admin — checked against the caller's own role row (RLS-scoped)
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roleRow) throw new Error("Forbidden");
 
     let typeFilter: string[] | null = null;
     if (data.category === "store") typeFilter = STORE_EVENTS;
