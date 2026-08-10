@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      addresses: {
+        Row: {
+          address: string
+          area: string | null
+          created_at: string
+          id: string
+          instructions: string | null
+          is_default: boolean
+          label: string | null
+          landmark: string | null
+          phone: string | null
+          recipient_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          area?: string | null
+          created_at?: string
+          id?: string
+          instructions?: string | null
+          is_default?: boolean
+          label?: string | null
+          landmark?: string | null
+          phone?: string | null
+          recipient_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          area?: string | null
+          created_at?: string
+          id?: string
+          instructions?: string | null
+          is_default?: boolean
+          label?: string | null
+          landmark?: string | null
+          phone?: string | null
+          recipient_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           created_at: string
@@ -40,6 +85,116 @@ export type Database = {
           session_id?: string | null
         }
         Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          entity: string | null
+          entity_id: string | null
+          id: string
+          metadata: Json
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          metadata?: Json
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          metadata?: Json
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      delivery_zones: {
+        Row: {
+          active: boolean
+          areas: string[]
+          created_at: string
+          eta_max_minutes: number
+          eta_min_minutes: number
+          fee_leones: number
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          areas?: string[]
+          created_at?: string
+          eta_max_minutes?: number
+          eta_min_minutes?: number
+          fee_leones?: number
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          areas?: string[]
+          created_at?: string
+          eta_max_minutes?: number
+          eta_min_minutes?: number
+          fee_leones?: number
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          order_id: string | null
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          order_id?: string | null
+          read?: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          order_id?: string | null
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_events: {
         Row: {
@@ -202,6 +357,161 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_events: {
+        Row: {
+          applied: boolean
+          created_at: string
+          error: string | null
+          event_type: string | null
+          id: string
+          order_id: string | null
+          payload: Json
+          payment_id: string | null
+          provider: string
+          provider_event_id: string
+          signature_verified: boolean
+        }
+        Insert: {
+          applied?: boolean
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          payment_id?: string | null
+          provider: string
+          provider_event_id: string
+          signature_verified?: boolean
+        }
+        Update: {
+          applied?: boolean
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          payment_id?: string | null
+          provider?: string
+          provider_event_id?: string
+          signature_verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_events_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_leones: number
+          checkout_reference: string | null
+          created_at: string
+          currency: string
+          customer_id: string | null
+          failure_reason: string | null
+          id: string
+          metadata: Json
+          order_id: string | null
+          paid_at: string | null
+          payment_method: string
+          provider: string
+          provider_reference: string | null
+          provider_transaction_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_leones: number
+          checkout_reference?: string | null
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          failure_reason?: string | null
+          id?: string
+          metadata?: Json
+          order_id?: string | null
+          paid_at?: string | null
+          payment_method: string
+          provider: string
+          provider_reference?: string | null
+          provider_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_leones?: number
+          checkout_reference?: string | null
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          failure_reason?: string | null
+          id?: string
+          metadata?: Json
+          order_id?: string | null
+          paid_at?: string | null
+          payment_method?: string
+          provider?: string
+          provider_reference?: string | null
+          provider_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reviews: {
         Row: {
           author_name: string | null
@@ -308,33 +618,66 @@ export type Database = {
       riders: {
         Row: {
           active: boolean
+          address: string | null
+          approved_at: string | null
           created_at: string
           display_name: string
+          email: string | null
+          emergency_contact: string | null
+          first_name: string | null
           id: string
+          is_online: boolean
+          last_name: string | null
+          national_id: string | null
           phone: string
+          rejection_reason: string | null
+          status: string
           updated_at: string
           user_id: string
           vehicle: string | null
+          vehicle_registration: string | null
         }
         Insert: {
           active?: boolean
+          address?: string | null
+          approved_at?: string | null
           created_at?: string
           display_name: string
+          email?: string | null
+          emergency_contact?: string | null
+          first_name?: string | null
           id?: string
+          is_online?: boolean
+          last_name?: string | null
+          national_id?: string | null
           phone: string
+          rejection_reason?: string | null
+          status?: string
           updated_at?: string
           user_id: string
           vehicle?: string | null
+          vehicle_registration?: string | null
         }
         Update: {
           active?: boolean
+          address?: string | null
+          approved_at?: string | null
           created_at?: string
           display_name?: string
+          email?: string | null
+          emergency_contact?: string | null
+          first_name?: string | null
           id?: string
+          is_online?: boolean
+          last_name?: string | null
+          national_id?: string | null
           phone?: string
+          rejection_reason?: string | null
+          status?: string
           updated_at?: string
           user_id?: string
           vehicle?: string | null
+          vehicle_registration?: string | null
         }
         Relationships: []
       }
@@ -468,7 +811,15 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      app_role: "admin" | "user" | "rider"
+      app_role:
+        | "admin"
+        | "user"
+        | "rider"
+        | "customer"
+        | "manager"
+        | "dispatcher"
+        | "support"
+        | "finance"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -596,7 +947,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "rider"],
+      app_role: [
+        "admin",
+        "user",
+        "rider",
+        "customer",
+        "manager",
+        "dispatcher",
+        "support",
+        "finance",
+      ],
     },
   },
 } as const
