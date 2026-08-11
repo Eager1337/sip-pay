@@ -168,7 +168,11 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const orders = supabaseAdmin.from("orders") as any;
     const analyticsEvents = supabaseAdmin.from("analytics_events") as any;
-    const { subtotal, deliveryFee, discount, total } = priceBreakdown(data.items, data.customer.district);
+    const { subtotal, deliveryFee, discount, total } = await priceBreakdown(
+      data.items,
+      data.customer.district,
+      data.customer.zone_id,
+    );
     const itemsJson = data.items.map((i) => ({ slug: i.slug, name: i.name, qty: i.qty, price: i.price }));
 
     let existing: { id: string; status: string; monime_checkout_url: string | null } | null = null;
