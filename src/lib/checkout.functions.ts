@@ -33,8 +33,9 @@ const inputSchema = z.object({
     phone: z.string().min(6).max(30),
     mobile_money_number: z.string().max(30).optional().nullable(),
     address: z.string().min(4).max(300),
-    city: z.string().min(2).max(80),
-    district: z.string().min(2).max(80),
+    city: z.string().max(80).optional().nullable().default("Freetown"),
+    district: z.string().max(80).optional().nullable().default("Western Area"),
+    zone_id: z.string().uuid().optional().nullable(),
     notes: z.string().max(500).optional().nullable(),
   }),
   origin: z.string().url().max(255),
@@ -49,14 +50,35 @@ function cleanPhone(phone: string): string {
   return phone.replace(/\s+/g, "").trim();
 }
 
-function deliveryFeeFor(district: string): number {
-  const d = district.toLowerCase();
+function deliveryFeeFor(district: string | null | undefined): number {
+  const d = (district ?? "").toLowerCase();
   return d.includes("western") || d.includes("freetown") ? DELIVERY_FEE_WESTERN : DELIVERY_FEE_UPCOUNTRY;
 }
 
-function priceBreakdown(items: CheckoutInput["items"], district: string) {
+/** Fee comes from the admin-managed delivery_zones table when a zone is chosen. */
+export async function resolveDeliveryFee(
+  zoneId: string | null | undefined,
+  district: string | null | undefined,
+): Promise<number> {
+  if (zoneId) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("delivery_zones")
+      .select("fee_leones, active")
+      .eq("id", zoneId)
+      .maybeSingle();
+    if (data?.active) return data.fee_leones as number;
+  }
+  return deliveryFeeFor(district);
+}
+
+async function priceBreakdown(
+  items: CheckoutInput["items"],
+  district: string | null | undefined,
+  zoneId?: string | null,
+) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const deliveryFee = deliveryFeeFor(district);
+  const deliveryFee = await resolveDeliveryFee(zoneId, district);
   const discount = subtotal >= BULK_DISCOUNT_MIN ? BULK_DISCOUNT_LEONES : 0;
   const total = Math.max(0, subtotal + deliveryFee - discount);
   return { subtotal, deliveryFee, discount, total };
@@ -146,7 +168,11 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const orders = supabaseAdmin.from("orders") as any;
     const analyticsEvents = supabaseAdmin.from("analytics_events") as any;
-    const { subtotal, deliveryFee, discount, total } = priceBreakdown(data.items, data.customer.district);
+    const { subtotal, deliveryFee, discount, total } = await priceBreakdown(
+      data.items,
+      data.customer.district,
+      data.customer.zone_id,
+    );
     const itemsJson = data.items.map((i) => ({ slug: i.slug, name: i.name, qty: i.qty, price: i.price }));
 
     let existing: { id: string; status: string; monime_checkout_url: string | null } | null = null;

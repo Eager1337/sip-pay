@@ -78,14 +78,15 @@ export const createCodOrder = createServerFn({ method: "POST" })
       address: z.string().min(4).max(300),
       city: z.string().max(80).optional().nullable(),
       district: z.string().max(80).optional().nullable(),
+      zone_id: z.string().uuid().optional().nullable(),
       notes: z.string().max(500).optional().nullable(),
     }),
   }).parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { resolveDeliveryFee } = await import("./checkout.functions");
     const orders = supabaseAdmin.from("orders") as any;
-    const district = (data.customer.district ?? "").toLowerCase();
-    const deliveryFee = district.includes("western") || district.includes("freetown") ? 15 : 25;
+    const deliveryFee = await resolveDeliveryFee(data.customer.zone_id, data.customer.district);
     const subtotal = data.items.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = subtotal >= 120 ? 10 : 0;
     const total = Math.max(0, subtotal + deliveryFee - discount);
