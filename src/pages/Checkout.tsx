@@ -81,21 +81,36 @@ const CheckoutPage = () => {
   }, [loadZones]);
 
   const zone = useMemo(() => zones.find((z) => z.id === zoneId), [zones, zoneId]);
+  const verification = useMemo(() => verifyCart(items), [items]);
   const isMomo = method === "afrimoney" || method === "orange_money";
   const deliveryFee = outsideZone ? 0 : zone?.fee_leones ?? 15;
   const discount = subtotal >= 120 ? 10 : 0;
   const total = Math.max(0, subtotal + deliveryFee - discount);
 
+  const fixCart = () => {
+    const { setQty, removeItem } = useCart.getState();
+    for (const issue of verification.issues) {
+      if (issue.suggestedQty <= 0) removeItem(issue.slug);
+      else setQty(issue.slug, issue.suggestedQty);
+    }
+    toast.success("Cart updated to available quantities.");
+  };
+
   const submit = async () => {
     const parsed = formSchema.safeParse(form);
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); setStep(0); return; }
     if (items.length === 0) { toast.error("Your cart is empty."); return; }
+    if (!verification.ok) {
+      toast.error(`${verification.issues[0].name}: ${verification.issues[0].message}`);
+      return;
+    }
     if (outsideZone) { toast.error("Delivery availability needs confirmation for this address."); return; }
     if (isMomo && !parsed.data.momo?.trim()) {
       toast.error("Enter the mobile money number registered to this wallet.");
       setStep(1);
       return;
     }
+
 
     setSubmitting(true);
     const itemsPayload = items.map((c) => {
