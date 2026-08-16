@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useCart, cartTotal } from "@/lib/cart";
+import { useCart, cartTotal, verifyCart } from "@/lib/cart";
 import { DRINKS } from "@/data/drinks";
 import { createCheckoutSession } from "@/lib/checkout.functions";
 import { createCodOrder } from "@/lib/orders.functions";
@@ -43,10 +43,11 @@ const METHODS: Array<{
   icon: typeof Smartphone;
   logo?: string;
 }> = [
-  { value: "orange_money", label: "Orange Money SL", hint: "Approve the prompt or dial #144#", icon: Smartphone, logo: orangeLogo.url },
-  { value: "afrimoney", label: "Afrimoney SL", hint: "Approve the prompt or dial *161#", icon: Smartphone, logo: afriLogo.url },
-  { value: "card", label: "Visa / Mastercard", hint: "Secure card payment", icon: CreditCard, logo: cardLogo.url },
   { value: "cod", label: "Cash on delivery", hint: "Pay the rider when your drinks arrive", icon: Truck },
+  { value: "afrimoney", label: "AfriMoneySL", hint: "Approve the prompt or dial *161#", icon: Smartphone, logo: afriLogo.url },
+  { value: "orange_money", label: "OrangeMoneySL", hint: "Approve the prompt or dial #144#", icon: Smartphone, logo: orangeLogo.url },
+  { value: "card", label: "VisaCard", hint: "Secure card payment", icon: CreditCard, logo: cardLogo.url },
+
 ];
 
 const STEPS = ["Delivery", "Payment", "Review"] as const;
@@ -80,21 +81,36 @@ const CheckoutPage = () => {
   }, [loadZones]);
 
   const zone = useMemo(() => zones.find((z) => z.id === zoneId), [zones, zoneId]);
+  const verification = useMemo(() => verifyCart(items), [items]);
   const isMomo = method === "afrimoney" || method === "orange_money";
   const deliveryFee = outsideZone ? 0 : zone?.fee_leones ?? 15;
   const discount = subtotal >= 120 ? 10 : 0;
   const total = Math.max(0, subtotal + deliveryFee - discount);
 
+  const fixCart = () => {
+    const { setQty, removeItem } = useCart.getState();
+    for (const issue of verification.issues) {
+      if (issue.suggestedQty <= 0) removeItem(issue.slug);
+      else setQty(issue.slug, issue.suggestedQty);
+    }
+    toast.success("Cart updated to available quantities.");
+  };
+
   const submit = async () => {
     const parsed = formSchema.safeParse(form);
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); setStep(0); return; }
     if (items.length === 0) { toast.error("Your cart is empty."); return; }
+    if (!verification.ok) {
+      toast.error(`${verification.issues[0].name}: ${verification.issues[0].message}`);
+      return;
+    }
     if (outsideZone) { toast.error("Delivery availability needs confirmation for this address."); return; }
     if (isMomo && !parsed.data.momo?.trim()) {
       toast.error("Enter the mobile money number registered to this wallet.");
       setStep(1);
       return;
     }
+
 
     setSubmitting(true);
     const itemsPayload = items.map((c) => {
