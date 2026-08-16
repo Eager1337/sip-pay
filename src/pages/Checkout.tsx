@@ -43,10 +43,11 @@ const METHODS: Array<{
   icon: typeof Smartphone;
   logo?: string;
 }> = [
-  { value: "orange_money", label: "Orange Money SL", hint: "Approve the prompt or dial #144#", icon: Smartphone, logo: orangeLogo.url },
-  { value: "afrimoney", label: "Afrimoney SL", hint: "Approve the prompt or dial *161#", icon: Smartphone, logo: afriLogo.url },
-  { value: "card", label: "Visa / Mastercard", hint: "Secure card payment", icon: CreditCard, logo: cardLogo.url },
   { value: "cod", label: "Cash on delivery", hint: "Pay the rider when your drinks arrive", icon: Truck },
+  { value: "afrimoney", label: "AfriMoneySL", hint: "Approve the prompt or dial *161#", icon: Smartphone, logo: afriLogo.url },
+  { value: "orange_money", label: "OrangeMoneySL", hint: "Approve the prompt or dial #144#", icon: Smartphone, logo: orangeLogo.url },
+  { value: "card", label: "VisaCard", hint: "Secure card payment", icon: CreditCard, logo: cardLogo.url },
+
 ];
 
 const STEPS = ["Delivery", "Payment", "Review"] as const;
