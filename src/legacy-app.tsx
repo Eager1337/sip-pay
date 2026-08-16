@@ -22,6 +22,7 @@ const Water = lazy(() => import("./pages/Water"));
 const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
 const AdminOrders = lazy(() => import("./pages/AdminOrders"));
 const Admin = lazy(() => import("./pages/Admin"));
+const AdminZones = lazy(() => import("./pages/AdminZones"));
 const Delivery = lazy(() => import("./pages/Delivery"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Order = lazy(() => import("./pages/Order"));
@@ -54,6 +55,7 @@ const LegacyApp = () => (
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/zones" element={<AdminZones />} />
             <Route path="/delivery" element={<Delivery />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order/:id" element={<Order />} />
