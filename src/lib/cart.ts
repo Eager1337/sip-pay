@@ -70,3 +70,32 @@ export function cartTotal(items: CartItem[]): number {
 export function cartCount(items: CartItem[]): number {
   return items.reduce((n, i) => n + i.qty, 0);
 }
+
+export type CartIssue = { slug: string; name: string; message: string; suggestedQty: number };
+
+/** Verify every line-item still exists and respects stock + per-order limits. */
+export function verifyCart(items: CartItem[]): { ok: boolean; issues: CartIssue[] } {
+  const issues: CartIssue[] = [];
+  for (const i of items) {
+    const d = DRINKS.find((x) => x.slug === i.slug);
+    if (!d) {
+      issues.push({ slug: i.slug, name: i.slug, message: "No longer available", suggestedQty: 0 });
+      continue;
+    }
+    if (i.qty <= 0) {
+      issues.push({ slug: i.slug, name: d.name, message: "Invalid quantity", suggestedQty: 0 });
+      continue;
+    }
+    const stock = d.stock ?? Number.POSITIVE_INFINITY;
+    if (stock <= 0) {
+      issues.push({ slug: i.slug, name: d.name, message: "Out of stock", suggestedQty: 0 });
+      continue;
+    }
+    const cap = Math.min(d.maxPerOrder, stock);
+    if (i.qty > cap) {
+      issues.push({ slug: i.slug, name: d.name, message: `Only ${cap} available per order`, suggestedQty: cap });
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
