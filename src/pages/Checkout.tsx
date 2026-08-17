@@ -177,7 +177,7 @@ const CheckoutPage = () => {
     <Layout>
       <Helmet>
         <title>Secure checkout — KK Drinks Freetown delivery</title>
-        <meta name="description" content="Pay with Orange Money, Afrimoney, Visa/Mastercard or cash on delivery. Freetown zone delivery from 30 minutes." />
+        <meta name="description" content="Verified checkout with Cash on delivery, AfriMoneySL, OrangeMoneySL or VisaCard. Freetown zone delivery from 30 minutes." />
       </Helmet>
 
       <div className="min-h-screen bg-[hsl(var(--paper))] pb-16 pt-24">
@@ -339,6 +339,21 @@ const CheckoutPage = () => {
                 {step === 2 && (
                   <section className="space-y-4 rounded-2xl border bg-card p-6">
                     <h2 className="display text-2xl">Review your order</h2>
+                    {verification.ok ? (
+                      <p className="flex items-center gap-2 rounded-lg border border-green-600/30 bg-green-600/10 p-3 text-sm text-green-800">
+                        <ShieldCheck className="h-4 w-4" /> Cart verified — all {items.length} item{items.length === 1 ? "" : "s"} are available at the quantities you chose.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+                        <p className="font-semibold text-destructive">We couldn't verify your cart</p>
+                        <ul className="list-disc pl-5 text-muted-foreground">
+                          {verification.issues.map((i) => (
+                            <li key={i.slug}>{i.name} — {i.message}</li>
+                          ))}
+                        </ul>
+                        <Button size="sm" variant="outline" onClick={fixCart}>Fix cart automatically</Button>
+                      </div>
+                    )}
                     <dl className="grid gap-3 text-sm sm:grid-cols-2">
                       <div><dt className="text-muted-foreground">Name</dt><dd>{form.customer_name}</dd></div>
                       <div><dt className="text-muted-foreground">Phone</dt><dd>{form.phone}</dd></div>
@@ -350,6 +365,7 @@ const CheckoutPage = () => {
                     </dl>
                   </section>
                 )}
+
 
                 <div className="flex gap-3">
                   {step > 0 && (
@@ -402,13 +418,15 @@ const CheckoutPage = () => {
                   </p>
                 )}
                 <Button size="lg" onClick={step === 2 ? submit : () => setStep(2)}
-                        disabled={submitting || outsideZone}
+                        disabled={submitting || outsideZone || (step === 2 && !verification.ok)}
                         className="w-full bg-[hsl(var(--sea))] hover:bg-[hsl(var(--sea))]/90">
                   {submitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…</>)
                     : step < 2 ? "Review order"
+                    : !verification.ok ? "Fix cart to continue"
                     : method === "cod" ? `Place order · Le ${total}`
                     : `Pay Le ${total}`}
                 </Button>
+
                 <p className="flex items-center justify-center gap-1 text-center text-xs text-muted-foreground">
                   <ShieldCheck className="h-3 w-3" /> Orders are only marked paid once the provider confirms payment.
                 </p>
