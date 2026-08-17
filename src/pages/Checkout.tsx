@@ -418,13 +418,15 @@ const CheckoutPage = () => {
                   </p>
                 )}
                 <Button size="lg" onClick={step === 2 ? submit : () => setStep(2)}
-                        disabled={submitting || outsideZone}
+                        disabled={submitting || outsideZone || (step === 2 && !verification.ok)}
                         className="w-full bg-[hsl(var(--sea))] hover:bg-[hsl(var(--sea))]/90">
                   {submitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…</>)
                     : step < 2 ? "Review order"
+                    : !verification.ok ? "Fix cart to continue"
                     : method === "cod" ? `Place order · Le ${total}`
                     : `Pay Le ${total}`}
                 </Button>
+
                 <p className="flex items-center justify-center gap-1 text-center text-xs text-muted-foreground">
                   <ShieldCheck className="h-3 w-3" /> Orders are only marked paid once the provider confirms payment.
                 </p>
