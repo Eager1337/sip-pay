@@ -339,6 +339,21 @@ const CheckoutPage = () => {
                 {step === 2 && (
                   <section className="space-y-4 rounded-2xl border bg-card p-6">
                     <h2 className="display text-2xl">Review your order</h2>
+                    {verification.ok ? (
+                      <p className="flex items-center gap-2 rounded-lg border border-green-600/30 bg-green-600/10 p-3 text-sm text-green-800">
+                        <ShieldCheck className="h-4 w-4" /> Cart verified — all {items.length} item{items.length === 1 ? "" : "s"} are available at the quantities you chose.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+                        <p className="font-semibold text-destructive">We couldn't verify your cart</p>
+                        <ul className="list-disc pl-5 text-muted-foreground">
+                          {verification.issues.map((i) => (
+                            <li key={i.slug}>{i.name} — {i.message}</li>
+                          ))}
+                        </ul>
+                        <Button size="sm" variant="outline" onClick={fixCart}>Fix cart automatically</Button>
+                      </div>
+                    )}
                     <dl className="grid gap-3 text-sm sm:grid-cols-2">
                       <div><dt className="text-muted-foreground">Name</dt><dd>{form.customer_name}</dd></div>
                       <div><dt className="text-muted-foreground">Phone</dt><dd>{form.phone}</dd></div>
@@ -350,6 +365,7 @@ const CheckoutPage = () => {
                     </dl>
                   </section>
                 )}
+
 
                 <div className="flex gap-3">
                   {step > 0 && (
