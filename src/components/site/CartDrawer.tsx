@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { X, Minus, Plus, Trash2, ShoppingBag, Truck, ShieldCheck } from "lucide-react";
-import { useCart, cartTotal, cartCount } from "@/lib/cart";
+import { X, Minus, Plus, Trash2, ShoppingBag, Truck, ShieldCheck, AlertTriangle } from "lucide-react";
+import { useCart, cartTotal, cartCount, verifyCart } from "@/lib/cart";
 import { DRINKS } from "@/data/drinks";
 import { Button } from "@/components/ui/button";
 import orangeLogo from "@/assets/pay-orange-money.webp.asset.json";
@@ -16,6 +16,15 @@ export const CartDrawer = () => {
   const count = cartCount(items);
   const remaining = Math.max(0, FREE_DELIVERY_FROM - total);
   const progress = Math.min(100, (total / FREE_DELIVERY_FROM) * 100);
+  const verification = verifyCart(items);
+
+  const fixCart = () => {
+    for (const issue of verification.issues) {
+      if (issue.suggestedQty <= 0) removeItem(issue.slug);
+      else setQty(issue.slug, issue.suggestedQty);
+    }
+  };
+
 
   return (
     <>
