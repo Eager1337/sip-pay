@@ -134,20 +134,42 @@ export const CartDrawer = () => {
               <span className="display text-xl">Le {total}</span>
             </div>
             <p className="text-xs text-muted-foreground">Delivery fee is calculated by Freetown zone at checkout.</p>
-            <Link to="/checkout" onClick={closeDrawer} className="block">
-              <Button size="lg" className="w-full bg-[hsl(var(--sea))] hover:bg-[hsl(var(--sea))]/90">
-                Checkout · Le {total}
-              </Button>
-            </Link>
+
+            {verification.ok ? (
+              <p className="flex items-center gap-1.5 rounded-lg bg-green-600/10 px-3 py-2 text-xs text-green-800">
+                <ShieldCheck className="h-3.5 w-3.5" /> Cart verified — every item is available.
+              </p>
+            ) : (
+              <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs">
+                <p className="flex items-center gap-1.5 font-semibold text-destructive">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Some items need attention
+                </p>
+                <ul className="list-disc pl-4 text-muted-foreground">
+                  {verification.issues.map((i) => <li key={i.slug}>{i.name} — {i.message}</li>)}
+                </ul>
+                <Button size="sm" variant="outline" onClick={fixCart}>Fix cart</Button>
+              </div>
+            )}
+
+            {verification.ok ? (
+              <Link to="/checkout" onClick={closeDrawer} className="block">
+                <Button size="lg" className="w-full bg-[hsl(var(--sea))] hover:bg-[hsl(var(--sea))]/90">
+                  Checkout · Le {total}
+                </Button>
+              </Link>
+            ) : (
+              <Button size="lg" disabled className="w-full">Fix cart to checkout</Button>
+            )}
             <div className="flex items-center justify-center gap-3 opacity-80">
-              <img src={orangeLogo.url} alt="Orange Money" className="h-4 object-contain" />
-              <img src={afriLogo.url} alt="Afrimoney" className="h-4 object-contain" />
-              <img src={cardLogo.url} alt="Visa and Mastercard" className="h-5 object-contain" />
+              <img src={afriLogo.url} alt="AfriMoneySL" className="h-4 object-contain" />
+              <img src={orangeLogo.url} alt="OrangeMoneySL" className="h-4 object-contain" />
+              <img src={cardLogo.url} alt="VisaCard" className="h-5 object-contain" />
               <img src={vultLogo.url} alt="Vult" className="h-5 object-contain" />
             </div>
             <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
               <ShieldCheck className="h-3 w-3" /> Secure payment · Sierra Leonean Leone
             </p>
+
           </footer>
         )}
       </aside>
