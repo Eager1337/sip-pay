@@ -177,7 +177,7 @@ const CheckoutPage = () => {
     <Layout>
       <Helmet>
         <title>Secure checkout — KK Drinks Freetown delivery</title>
-        <meta name="description" content="Pay with Orange Money, Afrimoney, Visa/Mastercard or cash on delivery. Freetown zone delivery from 30 minutes." />
+        <meta name="description" content="Verified checkout with Cash on delivery, AfriMoneySL, OrangeMoneySL or VisaCard. Freetown zone delivery from 30 minutes." />
       </Helmet>
 
       <div className="min-h-screen bg-[hsl(var(--paper))] pb-16 pt-24">
