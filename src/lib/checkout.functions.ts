@@ -125,6 +125,102 @@ function stringFrom(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/** KK Drinks receiving wallets shown on the dial-to-pay screen. */
+export const KK_AFRIMONEY_NUMBER = "033695803";
+export const KK_ORANGE_NUMBER = "073095177";
+
+function monimeHeaders(apiKey: string, spaceId: string, idempotencyKey?: string) {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "Monime-Space-Id": spaceId,
+    "Monime-Version": MONIME_VERSION,
+    ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+  };
+}
+
+/**
+ * Normalise a Sierra Leone mobile number to Monime's expected MSISDN
+ * (232 + 8 local digits). Returns null when it doesn't look valid.
+ */
+function toSlMsisdn(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let d = raw.replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("232")) d = d.slice(3);
+  d = d.replace(/^0+/, "");
+  if (d.length !== 8) return null;
+  return `232${d}`;
+}
+
+/** True when Monime rejected hosted checkout because the key is test-mode. */
+function isCheckoutUnavailable(status: number, json: Record<string, unknown>): boolean {
+  if (status === 403 || status === 401 || status === 404 || status >= 500) return true;
+  const err = (json.error ?? {}) as { reason?: string; message?: string };
+  const text = `${err.reason ?? ""} ${err.message ?? ""} ${String(json.message ?? "")}`.toLowerCase();
+  return text.includes("access_denied") || text.includes("test mode") || text.includes("not supported");
+}
+
+export type PaymentCodeResult = {
+  id: string;
+  ussdCode: string | null;
+  expireTime: string | null;
+  status: string | null;
+};
+
+/**
+ * Payment codes are the mobile-money fallback: Monime returns a USSD string the
+ * customer dials on their AfriMoney / Orange Money handset to push the exact
+ * amount to KK Drinks. Works where hosted checkout-sessions are unavailable.
+ */
+async function createMonimePaymentCode(args: {
+  apiKey: string;
+  spaceId: string;
+  orderId: string;
+  amountLeones: number;
+  customerName: string;
+  payerNumber: string | null;
+  idempotencyKey: string;
+}): Promise<{ ok: true; code: PaymentCodeResult } | { ok: false; error: string }> {
+  const msisdn = toSlMsisdn(args.payerNumber);
+  const body: Record<string, unknown> = {
+    name: `KK Drinks #${args.orderId.slice(0, 8).toUpperCase()}`,
+    mode: "one_time",
+    amount: { currency: "SLE", value: Math.round(args.amountLeones * 100) },
+    duration: "30m",
+    reference: args.orderId,
+    customer: { name: args.customerName.slice(0, 80) },
+    metadata: { order_id: args.orderId },
+  };
+  // Locking the code to the payer's own wallet stops anyone else paying it.
+  if (msisdn) body.authorizedPhoneNumber = msisdn;
+
+  const res = await fetch("https://api.monime.io/v1/payment-codes", {
+    method: "POST",
+    headers: monimeHeaders(args.apiKey, args.spaceId, args.idempotencyKey),
+    body: JSON.stringify(body),
+  });
+  const json = safeJson(await res.text()) as {
+    result?: { id?: string; ussdCode?: string; expireTime?: string; status?: string };
+    error?: { message?: string };
+    message?: string;
+  };
+  if (!res.ok || !json.result?.id) {
+    console.error("[monime-payment-code]", res.status, json);
+    return { ok: false, error: json.error?.message ?? json.message ?? "Could not create a payment code." };
+  }
+  return {
+    ok: true,
+    code: {
+      id: json.result.id,
+      ussdCode: json.result.ussdCode ?? null,
+      expireTime: json.result.expireTime ?? null,
+      status: json.result.status ?? null,
+    },
+  };
+}
+
+
 /**
  * Validate items against catalog: slug exists, price matches, and qty is within
  * stock + maxPerOrder. Returns per-item errors so the UI can highlight lines.
