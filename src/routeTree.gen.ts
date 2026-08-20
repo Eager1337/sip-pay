@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiPublicMprobeRouteImport } from './routes/api/public/mprobe'
 import { Route as ApiPublicWebhooksMonimeRouteImport } from './routes/api/public/webhooks/monime'
 
 const SplatRoute = SplatRouteImport.update({
@@ -24,11 +23,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicMprobeRoute = ApiPublicMprobeRouteImport.update({
-  id: '/api/public/mprobe',
-  path: '/api/public/mprobe',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicWebhooksMonimeRoute = ApiPublicWebhooksMonimeRouteImport.update({
   id: '/api/public/webhooks/monime',
   path: '/api/public/webhooks/monime',
@@ -38,39 +32,30 @@ const ApiPublicWebhooksMonimeRoute = ApiPublicWebhooksMonimeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/api/public/mprobe': typeof ApiPublicMprobeRoute
   '/api/public/webhooks/monime': typeof ApiPublicWebhooksMonimeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/api/public/mprobe': typeof ApiPublicMprobeRoute
   '/api/public/webhooks/monime': typeof ApiPublicWebhooksMonimeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/api/public/mprobe': typeof ApiPublicMprobeRoute
   '/api/public/webhooks/monime': typeof ApiPublicWebhooksMonimeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/api/public/mprobe' | '/api/public/webhooks/monime'
+  fullPaths: '/' | '/$' | '/api/public/webhooks/monime'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/api/public/mprobe' | '/api/public/webhooks/monime'
-  id:
-    | '__root__'
-    | '/'
-    | '/$'
-    | '/api/public/mprobe'
-    | '/api/public/webhooks/monime'
+  to: '/' | '/$' | '/api/public/webhooks/monime'
+  id: '__root__' | '/' | '/$' | '/api/public/webhooks/monime'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
-  ApiPublicMprobeRoute: typeof ApiPublicMprobeRoute
   ApiPublicWebhooksMonimeRoute: typeof ApiPublicWebhooksMonimeRoute
 }
 
@@ -90,13 +75,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/mprobe': {
-      id: '/api/public/mprobe'
-      path: '/api/public/mprobe'
-      fullPath: '/api/public/mprobe'
-      preLoaderRoute: typeof ApiPublicMprobeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/webhooks/monime': {
       id: '/api/public/webhooks/monime'
       path: '/api/public/webhooks/monime'
@@ -110,7 +88,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
-  ApiPublicMprobeRoute: ApiPublicMprobeRoute,
   ApiPublicWebhooksMonimeRoute: ApiPublicWebhooksMonimeRoute,
 }
 export const routeTree = rootRouteImport
