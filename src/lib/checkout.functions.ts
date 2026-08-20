@@ -395,6 +395,52 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     };
     if (!response.ok || !json.result?.redirectUrl) {
       console.error("[monime-checkout] api", response.status, json);
+
+      // Hosted checkout unavailable (test-mode key / access_denied) — fall back
+      // to a Monime payment code the customer dials on their own handset.
+      if (isCheckoutUnavailable(response.status, json)) {
+        const fallback = await createMonimePaymentCode({
+          apiKey,
+          spaceId,
+          orderId,
+          amountLeones: total,
+          customerName: data.customer.customer_name,
+          payerNumber: data.customer.mobile_money_number ?? data.customer.phone,
+          idempotencyKey: `pc-${idempotencyKey}`,
+        });
+        if (fallback.ok) {
+          await orders
+            .update({
+              status: "awaiting_payment",
+              monime_payment_code_id: fallback.code.id,
+              monime_ussd_code: fallback.code.ussdCode,
+              payment_code_expires_at: fallback.code.expireTime,
+              monime_checkout_url: null,
+              payment_failure_reason: null,
+            } as never)
+            .eq("id", orderId);
+
+          await analyticsEvents.insert({
+            event_type: "checkout_started",
+            path: "/checkout",
+            metadata: {
+              order_id: orderId, total_leones: total, provider: "monime",
+              payment_method: data.payment_method, mode: "payment_code",
+            } as never,
+          });
+
+          return {
+            ok: true as const,
+            mode: "ussd" as const,
+            order_id: orderId,
+            ussd_code: fallback.code.ussdCode,
+            payment_code_id: fallback.code.id,
+            expires_at: fallback.code.expireTime,
+            url: `${data.origin}/order/${orderId}`,
+          };
+        }
+      }
+
       await orders
         .update({
           status: "payment_failed",
@@ -406,6 +452,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         error: "Could not start secure Monime checkout. Please check the payment number and try again.",
       };
     }
+
 
     await orders
       .update({
