@@ -423,7 +423,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       metadata: { order_id: orderId, total_leones: total, provider: "monime", payment_method: data.payment_method } as never,
     });
 
-    return { ok: true as const, url: json.result.redirectUrl, order_id: orderId };
+    return { ok: true as const, mode: "redirect" as const, url: json.result.redirectUrl, order_id: orderId };
   });
 
 // Verify the order after redirect back from Monime.
