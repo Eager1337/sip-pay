@@ -260,14 +260,20 @@ export type Database = {
           district: string | null
           id: string
           items: Json
+          manual_transfer_at: string | null
+          manual_transfer_number: string | null
+          manual_transfer_ref: string | null
           monime_checkout_url: string | null
           monime_order_number: string | null
+          monime_payment_code_id: string | null
           monime_payment_id: string | null
           monime_session_id: string | null
           monime_transaction_id: string | null
+          monime_ussd_code: string | null
           notes: string | null
           out_for_delivery_at: string | null
           paid_at: string | null
+          payment_code_expires_at: string | null
           payment_failure_reason: string | null
           payment_method: string | null
           payment_provider: string | null
@@ -298,14 +304,20 @@ export type Database = {
           district?: string | null
           id?: string
           items: Json
+          manual_transfer_at?: string | null
+          manual_transfer_number?: string | null
+          manual_transfer_ref?: string | null
           monime_checkout_url?: string | null
           monime_order_number?: string | null
+          monime_payment_code_id?: string | null
           monime_payment_id?: string | null
           monime_session_id?: string | null
           monime_transaction_id?: string | null
+          monime_ussd_code?: string | null
           notes?: string | null
           out_for_delivery_at?: string | null
           paid_at?: string | null
+          payment_code_expires_at?: string | null
           payment_failure_reason?: string | null
           payment_method?: string | null
           payment_provider?: string | null
@@ -336,14 +348,20 @@ export type Database = {
           district?: string | null
           id?: string
           items?: Json
+          manual_transfer_at?: string | null
+          manual_transfer_number?: string | null
+          manual_transfer_ref?: string | null
           monime_checkout_url?: string | null
           monime_order_number?: string | null
+          monime_payment_code_id?: string | null
           monime_payment_id?: string | null
           monime_session_id?: string | null
           monime_transaction_id?: string | null
+          monime_ussd_code?: string | null
           notes?: string | null
           out_for_delivery_at?: string | null
           paid_at?: string | null
+          payment_code_expires_at?: string | null
           payment_failure_reason?: string | null
           payment_method?: string | null
           payment_provider?: string | null
