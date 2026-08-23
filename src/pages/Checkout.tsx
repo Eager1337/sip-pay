@@ -159,8 +159,16 @@ const CheckoutPage = () => {
         setSubmitting(false);
         return;
       }
+      clear();
+      if (r.mode === "ussd") {
+        // Monime returned a dial-to-pay code — the order page shows it.
+        toast.success("Dial the payment code on your phone to complete payment.");
+        navigate(`/order/${r.order_id}`);
+        return;
+      }
       toast.success(isMomo ? "Approve the payment prompt on your phone." : "Opening secure card payment…");
       window.location.href = r.url;
+
     } catch (e) {
       console.error(e);
       toast.error("The payment service didn't respond. Please check your connection and try again.");
