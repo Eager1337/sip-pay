@@ -33,12 +33,17 @@ type OrderRow = {
   payment_provider: string | null;
   monime_transaction_id?: string | null;
   monime_order_number?: string | null;
+  monime_ussd_code?: string | null;
+  monime_payment_code_id?: string | null;
+  payment_code_expires_at?: string | null;
+  manual_transfer_ref?: string | null;
   payment_failure_reason?: string | null;
   created_at: string;
   paid_at: string | null;
   delivered_at: string | null;
   cancelled_at: string | null;
 };
+
 
 type Extras = {
   delivery_code: string | null;
