@@ -473,7 +473,50 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     return { ok: true as const, mode: "redirect" as const, url: json.result.redirectUrl, order_id: orderId };
   });
 
-// Verify the order after redirect back from Monime.
+/** Flip an order to paid exactly once, generating the delivery code + commission. */
+async function applyPaid(args: {
+  orders: any;
+  order: { id: string; status: string; total_leones: number | null; delivery_code: string | null; rider_commission_pct: number | null };
+  transactionId: string | null;
+  orderNumber: string | null;
+  via: string;
+}) {
+  const { orders, order } = args;
+  const pct = Number(order.rider_commission_pct ?? 15);
+  const commission = Math.round(((order.total_leones ?? 0) * pct) / 100);
+  const { error } = await orders
+    .update({
+      status: "paid",
+      paid_at: new Date().toISOString(),
+      monime_payment_id: args.transactionId,
+      monime_transaction_id: args.transactionId,
+      monime_order_number: args.orderNumber,
+      delivery_code: order.delivery_code ?? deliveryCode(),
+      rider_commission_pct: pct,
+      rider_commission_leones: commission,
+      payment_failure_reason: null,
+    } as never)
+    .eq("id", order.id)
+    .neq("status", "paid");
+  if (error) return false;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await (supabaseAdmin.from("analytics_events") as any).insert({
+    event_type: "checkout_completed",
+    path: "/order",
+    metadata: { order_id: order.id, provider: "monime", via: args.via } as never,
+  });
+  await (supabaseAdmin.from("order_events") as any).insert({
+    order_id: order.id,
+    event_type: "payment_verified",
+    from_status: order.status,
+    to_status: "paid",
+    note: `Monime ${args.via} confirmed payment`,
+    meta: { transaction_id: args.transactionId, order_number: args.orderNumber } as never,
+  } as never);
+  return true;
+}
+
+// Verify the order after redirect back from Monime, or poll the payment code.
 export const verifyCheckoutSession = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ order_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
@@ -481,27 +524,65 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
     const spaceId = process.env.MONIME_SPACE_ID;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const orders = supabaseAdmin.from("orders") as any;
-    const analyticsEvents = supabaseAdmin.from("analytics_events") as any;
-    const orderEvents = supabaseAdmin.from("order_events") as any;
 
     const { data: order } = await orders
-      .select("id, status, monime_session_id, total_leones, monime_payment_id, delivery_code, rider_commission_pct")
+      .select("id, status, monime_session_id, monime_payment_code_id, total_leones, monime_payment_id, delivery_code, rider_commission_pct")
       .eq("id", data.order_id)
       .maybeSingle();
 
     if (!order) return { paid: false, status: "unknown", reason: null };
     if (order.status === "paid") return { paid: true, status: "paid", reason: null };
-    if (!apiKey || !spaceId || !order.monime_session_id) return { paid: false, status: order.status, reason: null };
+    if (!apiKey || !spaceId) return { paid: false, status: order.status, reason: null };
+
+    const headers = {
+      Authorization: `Bearer ${apiKey}`,
+      "Monime-Space-Id": spaceId,
+      "Monime-Version": MONIME_VERSION,
+    };
+
+    /* ---- Payment-code (dial-to-pay) branch ---- */
+    if (order.monime_payment_code_id) {
+      const res = await fetch(
+        `https://api.monime.io/v1/payment-codes/${encodeURIComponent(order.monime_payment_code_id)}`,
+        { headers },
+      );
+      const json = safeJson(await res.text()) as { result?: Record<string, unknown>; message?: string };
+      const result = json.result ?? {};
+      const status = String(result.status ?? "").toLowerCase();
+      // Monime reports progress on the code itself; a completed/used code means
+      // the customer's wallet actually pushed the funds.
+      const progress = (result.progress ?? {}) as { received?: { value?: number } };
+      const received = Number(progress.received?.value ?? 0);
+      const expected = Math.round((order.total_leones ?? 0) * 100);
+      const paidByAmount = expected > 0 && received >= expected;
+      const paid = paidByAmount || ["completed", "paid", "success", "used"].includes(status);
+      const failed = ["failed", "cancelled", "expired"].includes(status);
+      const transactionId =
+        stringFrom(result.lastTransactionId) ??
+        stringFrom(result.id) ??
+        order.monime_payment_code_id;
+
+      if (paid) {
+        await applyPaid({ orders, order, transactionId, orderNumber: null, via: "payment_code" });
+        return { paid: true, status: "paid", transaction_id: transactionId, reason: null };
+      }
+      if (failed && order.status === "awaiting_payment") {
+        await orders
+          .update({
+            status: `payment_${status === "cancelled" ? "cancelled" : status === "expired" ? "expired" : "failed"}`,
+            payment_failure_reason: json.message ?? `Payment code ${status}`,
+          } as never)
+          .eq("id", order.id)
+          .eq("status", "awaiting_payment");
+      }
+      return { paid: false, status: status || order.status, transaction_id: transactionId, reason: json.message ?? null };
+    }
+
+    if (!order.monime_session_id) return { paid: false, status: order.status, reason: null };
 
     const response = await fetch(
       `https://api.monime.io/v1/checkout-sessions/${encodeURIComponent(order.monime_session_id)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Monime-Space-Id": spaceId,
-          "Monime-Version": MONIME_VERSION,
-        },
-      },
+      { headers },
     );
     const json = safeJson(await response.text()) as { result?: Record<string, unknown>; message?: string };
     const result = json.result ?? {};
@@ -515,37 +596,11 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
       order.monime_session_id;
 
     if (paid && !order.monime_payment_id) {
-      const pct = Number(order.rider_commission_pct ?? 15);
-      const commission = Math.round(((order.total_leones ?? 0) * pct) / 100);
-      const { error } = await orders
-        .update({
-          status: "paid",
-          paid_at: new Date().toISOString(),
-          monime_payment_id: transactionId,
-          monime_transaction_id: transactionId,
-          monime_order_number: stringFrom(result.orderNumber),
-          delivery_code: order.delivery_code ?? deliveryCode(),
-          rider_commission_pct: pct,
-          rider_commission_leones: commission,
-          payment_failure_reason: null,
-        } as never)
-        .eq("id", order.id)
-        .neq("status", "paid");
-      if (!error) {
-        await analyticsEvents.insert({
-          event_type: "checkout_completed",
-          path: "/order",
-          metadata: { order_id: order.id, provider: "monime", via: "verify" } as never,
-        });
-        await orderEvents.insert({
-          order_id: order.id,
-          event_type: "payment_verified",
-          from_status: order.status,
-          to_status: "paid",
-          note: "Monime checkout verification confirmed payment",
-          meta: { transaction_id: transactionId, order_number: stringFrom(result.orderNumber) } as never,
-        } as never);
-      }
+      await applyPaid({
+        orders, order, transactionId,
+        orderNumber: stringFrom(result.orderNumber),
+        via: "verify",
+      });
     } else if (failed && order.status === "awaiting_payment") {
       await orders
         .update({
@@ -559,6 +614,54 @@ export const verifyCheckoutSession = createServerFn({ method: "POST" })
     return { paid, status, transaction_id: transactionId, reason: json.message ?? null };
   });
 
+/**
+ * Manual-transfer backstop: the customer sent money straight to the KK Drinks
+ * AfriMoney / Orange Money wallet and reports the reference. This does NOT
+ * mark the order paid — an admin verifies the transfer first.
+ */
+export const submitManualTransfer = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({
+      order_id: z.string().uuid(),
+      reference: z.string().trim().min(3).max(60),
+      from_number: z.string().trim().min(6).max(30),
+      wallet: z.enum(["afrimoney", "orange_money"]),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = supabaseAdmin.from("orders") as any;
+    const { data: order } = await orders
+      .select("id, status")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (!order) return { ok: false as const, error: "Order not found." };
+    if (order.status === "paid") return { ok: true as const, already: true as const };
+
+    const { error } = await orders
+      .update({
+        manual_transfer_ref: data.reference,
+        manual_transfer_number: cleanPhone(data.from_number),
+        manual_transfer_at: new Date().toISOString(),
+        status: "awaiting_payment",
+        payment_failure_reason: null,
+      } as never)
+      .eq("id", order.id)
+      .neq("status", "paid");
+    if (error) return { ok: false as const, error: "Could not save your transfer details." };
+
+    await (supabaseAdmin.from("order_events") as any).insert({
+      order_id: order.id,
+      event_type: "manual_transfer_reported",
+      from_status: order.status,
+      to_status: order.status,
+      note: `Customer reported a ${data.wallet === "afrimoney" ? "AfriMoneySL" : "OrangeMoneySL"} transfer`,
+      meta: { reference: data.reference, from_number: cleanPhone(data.from_number) } as never,
+    } as never);
+
+    return { ok: true as const, already: false as const };
+  });
+
 // Lightweight public order read — used by /order/:id status page.
 // Guarded by knowing the uuid; returns only customer-facing order details.
 export const getOrderStatus = createServerFn({ method: "GET" })
@@ -567,8 +670,15 @@ export const getOrderStatus = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const orders = supabaseAdmin.from("orders") as any;
     const { data: order } = await orders
-      .select("id, status, total_leones, delivery_fee_leones, discount_leones, items, customer_name, customer_email, phone, address, city, district, notes, payment_method, payment_provider, monime_payment_id, monime_transaction_id, monime_order_number, payment_failure_reason, created_at, paid_at, delivered_at, cancelled_at")
+      .select("id, status, total_leones, delivery_fee_leones, discount_leones, items, customer_name, customer_email, phone, address, city, district, notes, payment_method, payment_provider, monime_payment_id, monime_transaction_id, monime_order_number, monime_checkout_url, monime_ussd_code, monime_payment_code_id, payment_code_expires_at, manual_transfer_ref, manual_transfer_at, payment_failure_reason, created_at, paid_at, delivered_at, cancelled_at")
       .eq("id", data.order_id)
       .maybeSingle();
     return order;
   });
+
+/** Wallet numbers + USSD hints surfaced on the dial-to-pay screen. */
+export const getPayInfo = createServerFn({ method: "GET" }).handler(async () => ({
+  afrimoney: { number: KK_AFRIMONEY_NUMBER, ussd: "*161#", label: "AfriMoneySL" },
+  orange_money: { number: KK_ORANGE_NUMBER, ussd: "#144#", label: "OrangeMoneySL" },
+}));
+

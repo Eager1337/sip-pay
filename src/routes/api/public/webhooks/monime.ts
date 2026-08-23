@@ -74,16 +74,28 @@ export const Route = createFileRoute("/api/public/webhooks/monime")({
             callbackState?: string;
             metadata?: { order_id?: string };
             paymentId?: string;
+            paymentCodeId?: string;
+            paymentCode?: { id?: string; reference?: string; metadata?: { order_id?: string } };
           };
         } = {};
         try { event = JSON.parse(bodyText); } catch { /* ignore */ }
 
         const data = event.data ?? {};
-        const orderId =
+        // Payment-code events carry a `pmc-` id either directly or nested.
+        const isPmc = (v: unknown) => typeof v === "string" && v.startsWith("pmc-");
+        const paymentCodeId =
+          (isPmc(data.paymentCodeId) ? data.paymentCodeId : null) ??
+          (isPmc(data.paymentCode?.id) ? data.paymentCode?.id : null) ??
+          (isPmc(data.id) ? data.id : null) ??
+          null;
+        let orderId =
           data.metadata?.order_id ??
+          data.paymentCode?.metadata?.order_id ??
           data.callbackState ??
           data.reference ??
+          data.paymentCode?.reference ??
           null;
+        if (orderId && !/^[0-9a-f-]{36}$/i.test(orderId)) orderId = null;
         const status = (data.status ?? "").toLowerCase();
         const eventType = event.type ?? event.event ?? "unknown";
         // Idempotency key: prefer provider event id, else payment id, else derive
@@ -91,13 +103,25 @@ export const Route = createFileRoute("/api/public/webhooks/monime")({
           event.id ??
           event.eventId ??
           data.paymentId ??
-          `${orderId ?? "unknown"}:${status}:${Buffer.from(bodyText).toString("base64").slice(0, 24)}`;
+          `${orderId ?? paymentCodeId ?? "unknown"}:${status}:${Buffer.from(bodyText).toString("base64").slice(0, 24)}`;
 
         const supabase = createClient<Database>(
           process.env.SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!,
           { auth: { persistSession: false, autoRefreshToken: false } },
         );
+
+        // Resolve the order from the payment-code id when the payload has no
+        // reference/metadata (Monime payment-code events often omit them).
+        if (!orderId && paymentCodeId) {
+          const { data: byCode } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("monime_payment_code_id", paymentCodeId)
+            .maybeSingle();
+          orderId = byCode?.id ?? null;
+        }
+
 
         // Idempotency check — if we've seen this event id and applied it, we're done.
         const { data: prior } = await supabase
