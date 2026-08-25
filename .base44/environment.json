@@ -1,0 +1,32 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "description": "Supabase service role key (sb_secret_...) from your Supabase project Settings > API. Bypasses RLS for server-side checkout/admin/delivery operations.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "MONIME_API_KEY",
+      "description": "Monime API key for creating payment sessions (Monime merchant dashboard).",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "MONIME_SPACE_ID",
+      "description": "Monime Space ID used when creating payment sessions (Monime merchant dashboard).",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "MONIME_WEBHOOK_SECRET",
+      "description": "Monime webhook signing secret used to verify payment status callbacks (Monime merchant dashboard > webhooks).",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "ADMIN_PASSCODE",
+      "description": "Shared passcode that gates the /admin server functions. Set to any value you want to use as the admin password.",
+      "requiredAtBoot": false
+    }
+  ]
+}
