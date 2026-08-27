@@ -40,6 +40,7 @@ const RiderQueue = lazy(() => import("./pages/rider/RiderQueue"));
 const RiderDeliveries = lazy(() => import("./pages/rider/RiderDeliveries"));
 const RiderEarnings = lazy(() => import("./pages/rider/RiderEarnings"));
 const RiderProfile = lazy(() => import("./pages/rider/RiderProfile"));
+const RiderSignup = lazy(() => import("./pages/rider/RiderSignup"));
 const Delivery = lazy(() => import("./pages/Delivery"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Order = lazy(() => import("./pages/Order"));
@@ -90,6 +91,7 @@ const LegacyApp = () => (
             <Route path="/rider/deliveries" element={<RiderDeliveries />} />
             <Route path="/rider/earnings" element={<RiderEarnings />} />
             <Route path="/rider/profile" element={<RiderProfile />} />
+            <Route path="/rider/signup" element={<RiderSignup />} />
             <Route path="/delivery" element={<Delivery />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order/:id" element={<Order />} />
