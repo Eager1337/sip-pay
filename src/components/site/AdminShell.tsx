@@ -6,7 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { LayoutDashboard, Package, Users, Bike, Wallet, Star,
   Heart, ShoppingBag, Building2, Webhook, History, BarChart3,
-  MapPin, Settings, Shield, Menu, X, LogOut } from "lucide-react";
+  MapPin, Settings, Shield, Menu, X, LogOut, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export const NAV = [
@@ -23,6 +23,7 @@ export const NAV = [
   { to: "/admin/audit", label: "Audit log", icon: History },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/admin/zones", label: "Delivery zones", icon: MapPin },
+  { to: "/admin/content", label: "Site content", icon: ImageIcon },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ] as const;
 
