@@ -6,6 +6,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAdminDashboard } from "@/lib/admin-extras.functions";
 import { AdminShell, StatCard, Card, useAdminPasscode, useAdminErrorHandler } from "@/components/site/AdminShell";
 import { RefreshCw, TrendingUp, Clock, AlertTriangle } from "lucide-react";
+import AdminTrends from "@/components/admin/AdminTrends";
+import AdminRiderMap from "@/components/admin/AdminRiderMap";
 
 type Resp = Awaited<ReturnType<typeof getAdminDashboard>>;
 
@@ -52,6 +54,12 @@ export default function AdminDashboard() {
         <StatCard label="Delivery zones" value={data?.activeZones ?? 0} hint="Active at checkout" />
       </div>
 
+      <div className="mb-6">
+        <h2 className="display text-xl mb-1">Trends</h2>
+        <p className="text-xs text-muted-foreground mb-3">Daily revenue and order counts over the last two weeks.</p>
+        <AdminTrends />
+      </div>
+
       <div className="grid lg:grid-cols-2 gap-4">
         <Card title="Recent orders">
           <div className="divide-y">
@@ -90,6 +98,10 @@ export default function AdminDashboard() {
             {!data?.totalOrders && <p className="text-sm text-muted-foreground py-4 text-center">No data.</p>}
           </div>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <AdminRiderMap />
       </div>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">

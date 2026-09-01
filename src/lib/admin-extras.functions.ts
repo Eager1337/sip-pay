@@ -80,6 +80,91 @@ export const getAdminDashboard = createServerFn({ method: "POST" })
     };
   });
 
+/* ------------------------ Trends ------------------------ */
+
+// Last N days of revenue (paid+delivered/etc.) and order counts, one bucket per
+// calendar day (UTC). Empty days are zero-filled so the charts stay continuous.
+export const getDailyTrends = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({ passcode: pass, days: z.number().int().min(1).max(90).optional() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const db = await admin(data.passcode);
+    const days = data.days ?? 14;
+    const since = new Date(Date.now() - days * 86400_000).toISOString();
+    const { data: rows } = await db
+      .from("orders")
+      .select("created_at, status, total_leones")
+      .gte("created_at", since)
+      .order("created_at", { ascending: true })
+      .limit(10000);
+    const map = new Map<string, { date: string; revenue: number; orders: number }>();
+    for (let i = days - 1; i >= 0; i--) {
+      const key = new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10);
+      map.set(key, { date: key, revenue: 0, orders: 0 });
+    }
+    for (const o of (rows ?? []) as Array<{ created_at: string; status: string; total_leones: number }>) {
+      const key = (o.created_at ?? "").slice(0, 10);
+      const bucket = map.get(key);
+      if (!bucket) continue;
+      bucket.orders += 1;
+      if (REVENUE_STATUSES.includes(o.status)) bucket.revenue += o.total_leones ?? 0;
+    }
+    return { days: Array.from(map.values()) };
+  });
+
+/* ------------------------ Live rider map ------------------------ */
+
+// Latest reported position of every rider currently on an active delivery
+// (status = out_for_delivery) for the admin live map. Joins each such order to
+// its rider's name and the rider_locations row keyed on order_id.
+export const getActiveRiderLocations = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ passcode: pass }).parse(d))
+  .handler(async ({ data }) => {
+    const db = await admin(data.passcode);
+    const { data: orders } = await db
+      .from("orders")
+      .select("id, rider_id, customer_name, status, delivery_code")
+      .eq("status", "out_for_delivery")
+      .not("rider_id", "is", null);
+    const active = (orders ?? []) as Array<{
+      id: string; rider_id: string; customer_name: string | null;
+      status: string; delivery_code: string | null;
+    }>;
+    if (!active.length) return { riders: [] };
+    const orderIds = active.map((o) => o.id);
+    const riderIds = Array.from(new Set(active.map((o) => o.rider_id)));
+    const [locRes, riderRes] = await Promise.all([
+      db.from("rider_locations").select("order_id, lat, lng, updated_at").in("order_id", orderIds),
+      db.from("riders").select("id, display_name, phone").in("id", riderIds),
+    ]);
+    const locByOrder = new Map(
+      ((locRes.data ?? []) as Array<{ order_id: string; lat: number; lng: number; updated_at: string }>)
+        .map((l) => [l.order_id, l]),
+    );
+    const nameById = new Map(
+      ((riderRes.data ?? []) as Array<{ id: string; display_name: string }>)
+        .map((r) => [r.id, r.display_name]),
+    );
+    const riders = active
+      .map((o) => {
+        const loc = locByOrder.get(o.id);
+        if (!loc) return null;
+        return {
+          order_id: o.id,
+          rider_id: o.rider_id,
+          display_name: nameById.get(o.rider_id) ?? "Rider",
+          customer_name: o.customer_name,
+          delivery_code: o.delivery_code,
+          lat: loc.lat,
+          lng: loc.lng,
+          updated_at: loc.updated_at,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+    return { riders };
+  });
+
 /* ------------------------ Customers ------------------------ */
 
 export const listCustomersAdmin = createServerFn({ method: "POST" })
