@@ -30,7 +30,7 @@ export default function AdminHome() {
       if (!r.ok) throw new Error("Wrong passcode.");
       sessionStorage.setItem("kk_admin_pass", pass);
       toast.success("Welcome back.");
-      navigate("/admin/orders");
+      navigate("/admin/dashboard");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally { setBusy(false); }
@@ -55,7 +55,8 @@ export default function AdminHome() {
             <div className="rounded-xl border bg-white p-6 space-y-3">
               <p className="text-sm">You are signed in.</p>
               <div className="grid gap-2">
-                <Link to="/admin/orders"><Button className="w-full justify-start"><Package className="mr-2 h-4 w-4" /> Orders dashboard</Button></Link>
+                <Link to="/admin/dashboard"><Button className="w-full justify-start"><Shield className="mr-2 h-4 w-4" /> Open dashboard</Button></Link>
+                <Link to="/admin/orders"><Button variant="outline" className="w-full justify-start"><Package className="mr-2 h-4 w-4" /> Orders</Button></Link>
                 <Link to="/admin/analytics"><Button variant="outline" className="w-full justify-start"><BarChart3 className="mr-2 h-4 w-4" /> Analytics</Button></Link>
                 <Link to="/admin/zones"><Button variant="outline" className="w-full justify-start"><MapPin className="mr-2 h-4 w-4" /> Delivery zones</Button></Link>
               </div>

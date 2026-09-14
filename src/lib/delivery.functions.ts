@@ -184,7 +184,7 @@ export const completeDelivery = createServerFn({ method: "POST" })
       .eq("id", data.order_id);
     // Queue rider payout
     await admin.from("rider_payouts").insert({
-      rider_id: rider.id,
+      rider_id: context.userId, // rider_payouts.rider_id FKs auth.users(id)
       order_id: order.id,
       amount_leones: order.rider_commission_leones ?? 0,
       status: "pending",

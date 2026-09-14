@@ -23,6 +23,24 @@ const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
 const AdminOrders = lazy(() => import("./pages/AdminOrders"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminZones = lazy(() => import("./pages/AdminZones"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminCustomers = lazy(() => import("./pages/admin/AdminCustomers"));
+const AdminRiders = lazy(() => import("./pages/admin/AdminRiders"));
+const AdminPayouts = lazy(() => import("./pages/admin/AdminPayouts"));
+const AdminReviews = lazy(() => import("./pages/admin/AdminReviews"));
+const AdminWishlist = lazy(() => import("./pages/admin/AdminWishlist"));
+const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
+const AdminWholesale = lazy(() => import("./pages/admin/AdminWholesale"));
+const AdminWebhooks = lazy(() => import("./pages/admin/AdminWebhooks"));
+const AdminAudit = lazy(() => import("./pages/admin/AdminAudit"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const AdminContent = lazy(() => import("./pages/admin/AdminContent"));
+const RiderDashboard = lazy(() => import("./pages/rider/RiderDashboard"));
+const RiderQueue = lazy(() => import("./pages/rider/RiderQueue"));
+const RiderDeliveries = lazy(() => import("./pages/rider/RiderDeliveries"));
+const RiderEarnings = lazy(() => import("./pages/rider/RiderEarnings"));
+const RiderProfile = lazy(() => import("./pages/rider/RiderProfile"));
+const RiderSignup = lazy(() => import("./pages/rider/RiderSignup"));
 const Delivery = lazy(() => import("./pages/Delivery"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Order = lazy(() => import("./pages/Order"));
@@ -53,9 +71,27 @@ const LegacyApp = () => (
             <Route path="/about" element={<About />} />
             <Route path="/support" element={<Support />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/customers" element={<AdminCustomers />} />
+            <Route path="/admin/riders" element={<AdminRiders />} />
+            <Route path="/admin/payouts" element={<AdminPayouts />} />
+            <Route path="/admin/reviews" element={<AdminReviews />} />
+            <Route path="/admin/wishlist" element={<AdminWishlist />} />
+            <Route path="/admin/products" element={<AdminProducts />} />
+            <Route path="/admin/wholesale" element={<AdminWholesale />} />
+            <Route path="/admin/webhooks" element={<AdminWebhooks />} />
+            <Route path="/admin/audit" element={<AdminAudit />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin/content" element={<AdminContent />} />
             <Route path="/admin/zones" element={<AdminZones />} />
+            <Route path="/rider" element={<RiderDashboard />} />
+            <Route path="/rider/queue" element={<RiderQueue />} />
+            <Route path="/rider/deliveries" element={<RiderDeliveries />} />
+            <Route path="/rider/earnings" element={<RiderEarnings />} />
+            <Route path="/rider/profile" element={<RiderProfile />} />
+            <Route path="/rider/signup" element={<RiderSignup />} />
             <Route path="/delivery" element={<Delivery />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order/:id" element={<Order />} />

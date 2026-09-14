@@ -4,6 +4,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { DRINKS } from "@/data/drinks";
+import { notifyPaymentPaid } from "@/lib/slack";
 
 const DELIVERY_FEE_WESTERN = 15;
 const DELIVERY_FEE_UPCOUNTRY = 25;
@@ -513,6 +514,7 @@ async function applyPaid(args: {
     note: `Monime ${args.via} confirmed payment`,
     meta: { transaction_id: args.transactionId, order_number: args.orderNumber } as never,
   } as never);
+  void notifyPaymentPaid({ orderId: order.id, via: args.via, totalLeones: order.total_leones });
   return true;
 }
 

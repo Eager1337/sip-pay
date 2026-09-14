@@ -7,6 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
 import type { Database } from "@/integrations/supabase/types";
+import { notifyPaymentPaid } from "@/lib/slack";
 
 function timingSafeEqualHex(a: string, b: string): boolean {
   try {
@@ -195,6 +196,7 @@ export const Route = createFileRoute("/api/public/webhooks/monime")({
                 note: "Monime webhook confirmed payment",
                 meta: { event_id: eventId, payment_id: data.paymentId } as never,
               } as never);
+              void notifyPaymentPaid({ orderId, via: "webhook", totalLeones: fullOrder?.total_leones });
             }
           } else {
             applied = true; // already paid — nothing to do, but log as applied

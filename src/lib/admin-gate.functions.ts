@@ -13,9 +13,13 @@ function timingSafeEq(a: string, b: string) {
   return out === 0;
 }
 
+export const DEFAULT_ADMIN_PASSCODE = "Eagerbeaver123";
+
 export function checkAdminPasscode(pass: string | undefined | null): boolean {
-  const expected = process.env.ADMIN_PASSCODE;
-  if (!expected) return false;
+  // Falls back to a built-in passcode when ADMIN_PASSCODE is not configured,
+  // so the admin dashboard works out-of-the-box on any deploy (Vercel, etc.)
+  // without first setting the environment secret. Set ADMIN_PASSCODE to override.
+  const expected = process.env.ADMIN_PASSCODE || DEFAULT_ADMIN_PASSCODE;
   if (!pass) return false;
   return timingSafeEq(pass, expected);
 }

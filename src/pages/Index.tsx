@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Layout } from "@/components/site/Layout";
 import { SpinBottle } from "@/components/site/SpinBottle";
 import { OrderDialog } from "@/components/site/OrderDialog";
 import { DRINKS, getDrink } from "@/data/drinks";
+import { getSiteContent } from "@/lib/site-content.functions";
 import { Link } from "react-router-dom";
 import { ArrowRight, Award, Truck, Sparkles, Leaf } from "lucide-react";
 import wood from "@/assets/wood-bg.jpg";
@@ -16,17 +19,42 @@ const Index = () => {
   const heroDrinks = ["mango", "yogurt", "orange"].map(getDrink).filter(Boolean) as ReturnType<typeof getDrink>[] & {};
   const sorten = DRINKS.filter((d) => ["mango", "orange", "mixed-fruit"].includes(d.slug));
 
+  // Admin-editable hero + copy (site-content CMS). Falls back to defaults.
+  const contentFn = useServerFn(getSiteContent);
+  const [content, setContent] = useState<Awaited<ReturnType<typeof getSiteContent>>["content"] | null>(null);
+  useEffect(() => { void contentFn().then((r) => setContent(r.content)).catch(() => {}); }, [contentFn]);
+  const hero = content;
+  const hasCustomHero = !!hero?.hero_media_url;
+
   return (
     <Layout>
-      {/* HERO · full-width marketing banner */}
+      {/* HERO · full-width marketing banner (editable via admin CMS) */}
       <section className="relative overflow-hidden bg-white">
-        <img
-          src={heroBanner}
-          alt="Taste Sierra Leone in every sip — KK Drinks"
-          fetchPriority="high"
-          decoding="sync"
-          className="block w-full h-auto object-contain object-center"
-        />
+        {hasCustomHero ? (
+          hero!.hero_media_type === "video" ? (
+            <video
+              src={hero!.hero_media_url}
+              autoPlay muted loop playsInline
+              className="block w-full h-auto max-h-[82vh] object-cover"
+            />
+          ) : (
+            <img
+              src={hero!.hero_media_url}
+              alt="KK Drinks"
+              fetchPriority="high"
+              decoding="sync"
+              className="block w-full h-auto object-cover"
+            />
+          )
+        ) : (
+          <img
+            src={heroBanner}
+            alt="Taste Sierra Leone in every sip — KK Drinks"
+            fetchPriority="high"
+            decoding="sync"
+            className="block w-full h-auto object-contain object-center"
+          />
+        )}
       </section>
 
       {/* SPINNING BOTTLES · on dark wood */}
