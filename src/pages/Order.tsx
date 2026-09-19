@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download, MessageCircle, Mail, RotateCcw, Bell } from "lucide-react";
 import { Layout } from "@/components/site/Layout";
+import { DialToPay } from "@/components/site/DialToPay";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { verifyCheckoutSession, getOrderStatus } from "@/lib/checkout.functions";
