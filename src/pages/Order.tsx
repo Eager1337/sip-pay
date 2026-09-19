@@ -223,6 +223,18 @@ const OrderPage = () => {
                 )}
               </div>
 
+              {order.status === "awaiting_payment" && (
+                <DialToPay
+                  orderId={order.id}
+                  ussdCode={order.monime_ussd_code ?? null}
+                  expiresAt={order.payment_code_expires_at ?? null}
+                  totalLeones={order.total_leones}
+                  manualRef={order.manual_transfer_ref ?? null}
+                  onSubmitted={load}
+                />
+              )}
+
+
               {showCode && (
                 <div className="rounded-xl border-2 border-[hsl(var(--sun))] bg-[hsl(var(--sun))]/10 p-6">
                   <p className="eyebrow text-[hsl(var(--wood))]">Your delivery code</p>
