@@ -1,6 +1,8 @@
-// /delivery — rider portal. Riders sign in with Supabase auth, register
-// once, then see pending orders and their own deliveries.
-import { useEffect, useState, useCallback } from "react";
+// /delivery — rider portal. Riders sign up with their name, phone and vehicle
+// (no email confirmation friction), the rider row is created automatically,
+// and once an admin approves them they see orders, earnings, history, profile
+// and a live map of their active deliveries.
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useServerFn } from "@tanstack/react-start";
 import { Layout } from "@/components/site/Layout";
@@ -10,9 +12,13 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   registerRider, getMyRider, listAvailableOrders, listMyDeliveries,
   acceptOrder, markOutForDelivery, completeDelivery, postRiderLocation,
+  getRiderStats, updateRiderProfile, getMyActiveLocations,
 } from "@/lib/delivery.functions";
 import { toast } from "sonner";
-import { Bike, MapPin, Package, CheckCircle2, PlayCircle } from "lucide-react";
+import {
+  Bike, MapPin, Package, CheckCircle2, PlayCircle, Wallet, History,
+  UserCog, Map as MapIcon, Clock, Loader2,
+} from "lucide-react";
 
 type Order = {
   id: string; customer_name: string; phone: string; address: string;
@@ -23,14 +29,41 @@ type Order = {
   items: Array<{ slug: string; name: string; qty: number; price: number }>;
 };
 
-type Rider = { id: string; display_name: string; phone: string; vehicle: string | null; active: boolean };
+type Rider = {
+  id: string; display_name: string; phone: string; vehicle: string | null;
+  active: boolean; status: string; rejection_reason: string | null;
+  vehicle_registration?: string | null; address?: string | null;
+  emergency_contact?: string | null; national_id?: string | null; is_online?: boolean;
+};
+
+type Stats = {
+  payouts: Array<{ id: string; order_id: string; amount_leones: number; status: string; created_at: string }>;
+  total_earned: number; paid_out: number; pending_payout: number;
+  last_7_days: number; last_30_days: number; deliveries: number; active_orders: number;
+};
+
+type Loc = { order_id: string; lat: number; lng: number; updated_at: string };
+
+const TABS = [
+  { key: "orders", label: "Orders", icon: Package },
+  { key: "earnings", label: "Earnings", icon: Wallet },
+  { key: "history", label: "History", icon: History },
+  { key: "map", label: "Live map", icon: MapIcon },
+  { key: "profile", label: "Profile", icon: UserCog },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
 
 export default function DeliveryPortal() {
   const [userId, setUserId] = useState<string | null>(null);
   const [rider, setRider] = useState<Rider | null>(null);
   const [available, setAvailable] = useState<Order[]>([]);
   const [mine, setMine] = useState<Order[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [locations, setLocations] = useState<Loc[]>([]);
   const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<TabKey>("orders");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const pendingProfile = useRef<{ display_name: string; phone: string; vehicle: string } | null>(null);
 
   const registerFn = useServerFn(registerRider);
   const getRiderFn = useServerFn(getMyRider);
@@ -40,6 +73,9 @@ export default function DeliveryPortal() {
   const outFn = useServerFn(markOutForDelivery);
   const completeFn = useServerFn(completeDelivery);
   const locFn = useServerFn(postRiderLocation);
+  const statsFn = useServerFn(getRiderStats);
+  const profileFn = useServerFn(updateRiderProfile);
+  const myLocFn = useServerFn(getMyActiveLocations);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
@@ -51,16 +87,29 @@ export default function DeliveryPortal() {
     if (!userId) return;
     setLoading(true);
     try {
-      const r = await getRiderFn();
-      setRider(r as Rider | null);
-      if (r) {
-        const [a, m] = await Promise.all([availFn(), mineFn()]);
+      let r = (await getRiderFn()) as Rider | null;
+      // Auto-create the rider row straight after signup.
+      if (!r && pendingProfile.current) {
+        await registerFn({ data: pendingProfile.current });
+        pendingProfile.current = null;
+        r = (await getRiderFn()) as Rider | null;
+      }
+      setRider(r);
+      if (r && r.status === "approved") {
+        const [a, m, s, l] = await Promise.all([
+          availFn().catch(() => []),
+          mineFn().catch(() => []),
+          statsFn().catch(() => null),
+          myLocFn().catch(() => []),
+        ]);
         setAvailable(a as Order[]);
         setMine(m as Order[]);
+        setStats(s as Stats | null);
+        setLocations(l as Loc[]);
       }
     } catch (e) { console.warn(e); }
     finally { setLoading(false); }
-  }, [userId, getRiderFn, availFn, mineFn]);
+  }, [userId, getRiderFn, registerFn, availFn, mineFn, statsFn, myLocFn]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -84,37 +133,30 @@ export default function DeliveryPortal() {
     return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
   }, [rider, mine, locFn]);
 
-  const signIn = async (e: React.FormEvent<HTMLFormElement>) => {
+  const auth = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const email = String(fd.get("email"));
     const password = String(fd.get("password"));
-    const mode = String(fd.get("mode"));
     if (mode === "signup") {
+      pendingProfile.current = {
+        display_name: String(fd.get("display_name") ?? ""),
+        phone: String(fd.get("phone") ?? ""),
+        vehicle: String(fd.get("vehicle") ?? ""),
+      };
       const { error } = await supabase.auth.signUp({
         email, password,
-        options: { emailRedirectTo: `${window.location.origin}/delivery` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/delivery`,
+          data: pendingProfile.current,
+        },
       });
-      if (error) return toast.error(error.message);
-      toast.success("Account created. Check email if confirmation is required.");
+      if (error) { pendingProfile.current = null; return toast.error(error.message); }
+      toast.success("Rider account created — setting up your profile…");
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return toast.error(error.message);
     }
-  };
-
-  const register = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    try {
-      await registerFn({ data: {
-        display_name: String(fd.get("display_name")),
-        phone: String(fd.get("phone")),
-        vehicle: String(fd.get("vehicle") ?? ""),
-      } });
-      toast.success("Rider profile created.");
-      void load();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
   };
 
   const accept = async (id: string) => {
@@ -130,11 +172,32 @@ export default function DeliveryPortal() {
     catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
   };
 
+  const saveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    try {
+      await profileFn({ data: {
+        display_name: String(fd.get("display_name")),
+        phone: String(fd.get("phone")),
+        vehicle: String(fd.get("vehicle") ?? ""),
+        vehicle_registration: String(fd.get("vehicle_registration") ?? ""),
+        address: String(fd.get("address") ?? ""),
+        emergency_contact: String(fd.get("emergency_contact") ?? ""),
+        national_id: String(fd.get("national_id") ?? ""),
+      } });
+      toast.success("Profile saved.");
+      void load();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+  };
+
+  const pending = rider && rider.status !== "approved";
+  const history = mine.filter((o) => o.status === "delivered");
+
   return (
     <Layout>
       <Helmet><title>Delivery Rider — KK Drinks</title><meta name="robots" content="noindex" /></Helmet>
       <div className="pt-24 pb-16 min-h-screen bg-[hsl(var(--paper))]">
-        <div className="mx-auto max-w-4xl px-6 space-y-6">
+        <div className="mx-auto max-w-5xl px-6 space-y-6">
           <div className="flex items-center gap-3">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--sea))] text-white">
               <Bike className="h-6 w-6" />
@@ -146,76 +209,228 @@ export default function DeliveryPortal() {
           </div>
 
           {!userId ? (
-            <form onSubmit={signIn} className="rounded-xl border bg-white p-6 space-y-3 max-w-md">
-              <h2 className="display text-xl">Rider sign in</h2>
+            <form onSubmit={auth} className="rounded-xl border bg-white p-6 space-y-3 max-w-md">
+              <h2 className="display text-xl">{mode === "signup" ? "Create your rider account" : "Rider sign in"}</h2>
+              {mode === "signup" && (
+                <>
+                  <Input name="display_name" placeholder="Full name" required minLength={2} />
+                  <Input name="phone" placeholder="Phone (WhatsApp)" required minLength={6} />
+                  <Input name="vehicle" placeholder="Vehicle (e.g. Motorbike, Bicycle)" required />
+                </>
+              )}
               <Input name="email" type="email" placeholder="Email" required />
               <Input name="password" type="password" placeholder="Password (min 6)" minLength={6} required />
-              <div className="flex gap-2">
-                <Button type="submit" name="mode" value="signin">Sign in</Button>
-                <Button type="submit" name="mode" value="signup" variant="outline">Create rider account</Button>
-              </div>
+              <Button type="submit" className="w-full">
+                {mode === "signup" ? "Create rider account" : "Sign in"}
+              </Button>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline"
+                onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
+              >
+                {mode === "signup" ? "I already have an account" : "New rider? Create an account"}
+              </button>
             </form>
           ) : !rider ? (
-            <form onSubmit={register} className="rounded-xl border bg-white p-6 space-y-3 max-w-md">
-              <h2 className="display text-xl">Register as a rider</h2>
-              <Input name="display_name" placeholder="Full name" required minLength={2} />
-              <Input name="phone" placeholder="Phone (WhatsApp)" required minLength={6} />
-              <Input name="vehicle" placeholder="Vehicle (e.g. Motorbike, Bicycle)" />
-              <Button type="submit">Register</Button>
-            </form>
+            <div className="rounded-xl border bg-white p-6 flex items-center gap-3 max-w-md">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Setting up your rider profile…</span>
+            </div>
           ) : (
             <>
-              <div className="rounded-xl border bg-white p-4 flex items-center justify-between">
+              <div className="rounded-xl border bg-white p-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm">
                   Signed in as <span className="font-semibold">{rider.display_name}</span>
                   <span className="text-muted-foreground"> · {rider.phone}</span>
+                  <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] uppercase tracking-wider ${
+                    rider.status === "approved" ? "bg-green-100 text-green-800"
+                      : rider.status === "rejected" ? "bg-red-100 text-red-800"
+                      : "bg-amber-100 text-amber-800"}`}>
+                    {rider.status}
+                  </span>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>Sign out</Button>
               </div>
 
-              {/* Available orders */}
-              <div>
-                <h2 className="display text-2xl mb-3">Available orders {loading && "…"}</h2>
-                <div className="grid gap-3">
-                  {available.length === 0 && (
-                    <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
-                      No pending orders right now.
-                    </div>
-                  )}
-                  {available.map((o) => (
-                    <div key={o.id} className="rounded-xl border bg-white p-4 flex flex-wrap justify-between gap-3">
-                      <div className="flex-1 min-w-[220px] space-y-1">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Package className="h-3 w-3" /> {o.id.slice(0, 8)} · {new Date(o.created_at).toLocaleString()}
-                        </div>
-                        <div className="font-semibold">{o.customer_name} · <span className="text-muted-foreground font-normal">{o.phone}</span></div>
-                        <div className="text-sm flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />{o.address}</div>
-                        <div className="text-xs text-muted-foreground">{o.items.map((i) => `${i.name}×${i.qty}`).join(", ")}</div>
-                      </div>
-                      <div className="text-right space-y-2">
-                        <div className="tabular-nums font-semibold">Le {o.total_leones}</div>
-                        <div className="text-[10px] text-[hsl(var(--sea))]">Earn Le {o.rider_commission_leones ?? Math.round(o.total_leones * 0.15)}</div>
-                        <Button size="sm" onClick={() => accept(o.id)}>Accept</Button>
-                      </div>
-                    </div>
-                  ))}
+              {pending && (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-6 space-y-1">
+                  <div className="flex items-center gap-2 font-semibold text-amber-900">
+                    <Clock className="h-5 w-5" /> {rider.status === "rejected" ? "Application rejected" : "Awaiting admin approval"}
+                  </div>
+                  <p className="text-sm text-amber-800">
+                    {rider.status === "rejected"
+                      ? rider.rejection_reason ?? "Contact KK Drinks for details."
+                      : "Your details are with the KK Drinks team. You can complete your profile below while you wait."}
+                  </p>
                 </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {TABS.filter((t) => !pending || t.key === "profile").map((t) => (
+                  <Button
+                    key={t.key}
+                    size="sm"
+                    variant={tab === t.key ? "default" : "outline"}
+                    onClick={() => setTab(t.key)}
+                  >
+                    <t.icon className="h-4 w-4 mr-1" /> {t.label}
+                  </Button>
+                ))}
               </div>
 
-              {/* My deliveries */}
-              <div>
-                <h2 className="display text-2xl mb-3">My deliveries</h2>
-                <div className="grid gap-3">
-                  {mine.length === 0 && (
-                    <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
-                      You haven't accepted any orders yet.
+              {(pending || tab === "profile") && (
+                <form onSubmit={saveProfile} className="rounded-xl border bg-white p-6 grid gap-3 sm:grid-cols-2">
+                  <h2 className="display text-2xl sm:col-span-2">Profile</h2>
+                  <Input name="display_name" defaultValue={rider.display_name} placeholder="Full name" required />
+                  <Input name="phone" defaultValue={rider.phone} placeholder="Phone" required />
+                  <Input name="vehicle" defaultValue={rider.vehicle ?? ""} placeholder="Vehicle" />
+                  <Input name="vehicle_registration" defaultValue={rider.vehicle_registration ?? ""} placeholder="Vehicle registration" />
+                  <Input name="national_id" defaultValue={rider.national_id ?? ""} placeholder="National ID" />
+                  <Input name="emergency_contact" defaultValue={rider.emergency_contact ?? ""} placeholder="Emergency contact" />
+                  <Input name="address" defaultValue={rider.address ?? ""} placeholder="Home address" className="sm:col-span-2" />
+                  <div className="sm:col-span-2"><Button type="submit">Save profile</Button></div>
+                </form>
+              )}
+
+              {!pending && tab === "orders" && (
+                <>
+                  <div>
+                    <h2 className="display text-2xl mb-3">Available orders {loading && "…"}</h2>
+                    <div className="grid gap-3">
+                      {available.length === 0 && (
+                        <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+                          No pending orders right now.
+                        </div>
+                      )}
+                      {available.map((o) => (
+                        <div key={o.id} className="rounded-xl border bg-white p-4 flex flex-wrap justify-between gap-3">
+                          <div className="flex-1 min-w-[220px] space-y-1">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Package className="h-3 w-3" /> {o.id.slice(0, 8)} · {new Date(o.created_at).toLocaleString()}
+                            </div>
+                            <div className="font-semibold">{o.customer_name} · <span className="text-muted-foreground font-normal">{o.phone}</span></div>
+                            <div className="text-sm flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />{o.address}</div>
+                            <div className="text-xs text-muted-foreground">{o.items.map((i) => `${i.name}×${i.qty}`).join(", ")}</div>
+                          </div>
+                          <div className="text-right space-y-2">
+                            <div className="tabular-nums font-semibold">Le {o.total_leones}</div>
+                            <div className="text-[10px] text-[hsl(var(--sea))]">Earn Le {o.rider_commission_leones ?? Math.round(o.total_leones * 0.15)}</div>
+                            <Button size="sm" onClick={() => accept(o.id)}>Accept</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="display text-2xl mb-3">My deliveries</h2>
+                    <div className="grid gap-3">
+                      {mine.filter((o) => o.status !== "delivered").length === 0 && (
+                        <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+                          No active deliveries.
+                        </div>
+                      )}
+                      {mine.filter((o) => o.status !== "delivered").map((o) => (
+                        <MyDeliveryCard key={o.id} order={o} onOut={() => goOut(o.id)} onComplete={(code) => complete(o.id, code)} />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {!pending && tab === "earnings" && (
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    {[
+                      { label: "Total earned", value: stats?.total_earned ?? 0 },
+                      { label: "Paid out", value: stats?.paid_out ?? 0 },
+                      { label: "Pending payout", value: stats?.pending_payout ?? 0 },
+                      { label: "Last 7 days", value: stats?.last_7_days ?? 0 },
+                    ].map((c) => (
+                      <div key={c.label} className="rounded-xl border bg-white p-4">
+                        <div className="text-xs text-muted-foreground">{c.label}</div>
+                        <div className="display text-2xl tabular-nums">Le {c.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-xl border bg-white p-4">
+                    <h3 className="display text-xl mb-2">Payout history</h3>
+                    {(stats?.payouts ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No payouts yet — complete a delivery to earn.</p>
+                    ) : (
+                      <div className="divide-y text-sm">
+                        {stats!.payouts.map((p) => (
+                          <div key={p.id} className="flex justify-between py-2">
+                            <span className="text-muted-foreground">
+                              {new Date(p.created_at).toLocaleDateString()} · order {p.order_id.slice(0, 8)}
+                            </span>
+                            <span className="tabular-nums font-semibold">
+                              Le {p.amount_leones} <span className="text-xs font-normal text-muted-foreground">({p.status})</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!pending && tab === "history" && (
+                <div className="rounded-xl border bg-white p-4">
+                  <h3 className="display text-xl mb-2">Completed deliveries ({history.length})</h3>
+                  {history.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nothing delivered yet.</p>
+                  ) : (
+                    <div className="divide-y text-sm">
+                      {history.map((o) => (
+                        <div key={o.id} className="flex flex-wrap justify-between gap-2 py-2">
+                          <span>
+                            <span className="font-semibold">{o.customer_name}</span>
+                            <span className="text-muted-foreground"> · {o.address}</span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            {o.delivered_at ? new Date(o.delivered_at).toLocaleString() : "—"} ·
+                            <span className="font-semibold text-[hsl(var(--sea))]"> Le {o.rider_commission_leones ?? 0}</span>
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
-                  {mine.map((o) => (
-                    <MyDeliveryCard key={o.id} order={o} onOut={() => goOut(o.id)} onComplete={(code) => complete(o.id, code)} />
-                  ))}
                 </div>
-              </div>
+              )}
+
+              {!pending && tab === "map" && (
+                <div className="space-y-3">
+                  <div className="rounded-xl border bg-white p-4">
+                    <h3 className="display text-xl mb-1">Live map</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Your phone shares GPS automatically while an order is out for delivery.
+                    </p>
+                  </div>
+                  {locations.length === 0 ? (
+                    <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+                      No live positions yet. Start a delivery to begin sharing.
+                    </div>
+                  ) : (
+                    locations.map((l) => (
+                      <div key={l.order_id} className="rounded-xl border bg-white overflow-hidden">
+                        <div className="p-3 text-sm flex flex-wrap justify-between gap-2">
+                          <span>Order {l.order_id.slice(0, 8)}</span>
+                          <span className="text-muted-foreground">
+                            {l.lat.toFixed(4)}, {l.lng.toFixed(4)} · {new Date(l.updated_at).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <iframe
+                          title={`map-${l.order_id}`}
+                          className="w-full h-64 border-0"
+                          loading="lazy"
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${l.lng - 0.01}%2C${l.lat - 0.01}%2C${l.lng + 0.01}%2C${l.lat + 0.01}&layer=mapnik&marker=${l.lat}%2C${l.lng}`}
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
