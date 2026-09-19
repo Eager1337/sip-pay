@@ -82,10 +82,13 @@ async function requireRider(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("riders")
-    .select("id, active, display_name, phone")
+    .select("id, active, status, display_name, phone")
     .eq("user_id", userId)
     .maybeSingle();
   if (!data) throw new Error("Not registered as a rider yet.");
+  if (data.status === "rejected") throw new Error("Your rider application was rejected.");
+  if (data.status === "suspended") throw new Error("Your rider account is suspended.");
+  if (data.status !== "approved") throw new Error("Your rider account is awaiting admin approval.");
   if (!data.active) throw new Error("Your rider account is inactive.");
   return { admin: supabaseAdmin, rider: data };
 }
