@@ -287,3 +287,98 @@ export const customerConfirmReceipt = createServerFn({ method: "POST" })
     } as never);
     return { ok: true };
   });
+
+/* -------------------- Rider dashboard extras -------------------- */
+
+export const getRiderStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rider } = await supabaseAdmin
+      .from("riders")
+      .select("id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!rider) return null;
+    const [{ data: payouts }, { data: orders }] = await Promise.all([
+      supabaseAdmin
+        .from("rider_payouts")
+        .select("id, order_id, amount_leones, status, created_at")
+        .eq("rider_id", rider.id)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabaseAdmin
+        .from("orders")
+        .select("id, status, delivered_at, total_leones, rider_commission_leones, created_at")
+        .eq("rider_id", rider.id)
+        .limit(300),
+    ]);
+    const all = payouts ?? [];
+    const now = Date.now();
+    const since = (days: number) => now - days * 86400000;
+    const sum = (list: typeof all) => list.reduce((s, p) => s + (p.amount_leones ?? 0), 0);
+    return {
+      payouts: all,
+      total_earned: sum(all),
+      paid_out: sum(all.filter((p) => p.status === "paid")),
+      pending_payout: sum(all.filter((p) => p.status !== "paid")),
+      last_7_days: sum(all.filter((p) => new Date(p.created_at).getTime() >= since(7))),
+      last_30_days: sum(all.filter((p) => new Date(p.created_at).getTime() >= since(30))),
+      deliveries: (orders ?? []).filter((o) => o.status === "delivered").length,
+      active_orders: (orders ?? []).filter((o) => ["paid", "cod_pending", "out_for_delivery"].includes(o.status)).length,
+    };
+  });
+
+export const updateRiderProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      display_name: z.string().min(2).max(80),
+      phone: z.string().min(6).max(30),
+      vehicle: z.string().max(60).optional().default(""),
+      vehicle_registration: z.string().max(40).optional().default(""),
+      address: z.string().max(200).optional().default(""),
+      emergency_contact: z.string().max(60).optional().default(""),
+      national_id: z.string().max(40).optional().default(""),
+      is_online: z.boolean().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("riders")
+      .update({
+        display_name: data.display_name,
+        phone: data.phone,
+        vehicle: data.vehicle,
+        vehicle_registration: data.vehicle_registration,
+        address: data.address,
+        emergency_contact: data.emergency_contact,
+        national_id: data.national_id,
+        ...(data.is_online === undefined ? {} : { is_online: data.is_online }),
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** Live locations the rider has posted for their in-flight deliveries. */
+export const getMyActiveLocations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rider } = await supabaseAdmin
+      .from("riders")
+      .select("id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!rider) return [];
+    const { data } = await supabaseAdmin
+      .from("rider_locations")
+      .select("order_id, lat, lng, updated_at")
+      .eq("rider_id", rider.id)
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    return data ?? [];
+  });
