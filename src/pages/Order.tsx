@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Clock, XCircle, Truck, Loader2, Package, Copy, MapPin, User, Download, MessageCircle, Mail, RotateCcw, Bell } from "lucide-react";
 import { Layout } from "@/components/site/Layout";
+import { DialToPay } from "@/components/site/DialToPay";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { verifyCheckoutSession, getOrderStatus } from "@/lib/checkout.functions";
@@ -222,6 +223,18 @@ const OrderPage = () => {
                   <p className="text-xs mt-3 opacity-70">This page refreshes automatically.</p>
                 )}
               </div>
+
+              {order.status === "awaiting_payment" && (
+                <DialToPay
+                  orderId={order.id}
+                  ussdCode={order.monime_ussd_code ?? null}
+                  expiresAt={order.payment_code_expires_at ?? null}
+                  totalLeones={order.total_leones}
+                  manualRef={order.manual_transfer_ref ?? null}
+                  onSubmitted={load}
+                />
+              )}
+
 
               {showCode && (
                 <div className="rounded-xl border-2 border-[hsl(var(--sun))] bg-[hsl(var(--sun))]/10 p-6">
