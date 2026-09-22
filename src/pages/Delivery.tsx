@@ -63,6 +63,9 @@ export default function DeliveryPortal() {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<TabKey>("orders");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [myPos, setMyPos] = useState<{ lat: number; lng: number; accuracy: number; at: number } | null>(null);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const lastSent = useRef<Record<string, number>>({});
   const pendingProfile = useRef<{ display_name: string; phone: string; vehicle: string } | null>(null);
 
   const registerFn = useServerFn(registerRider);
@@ -113,25 +116,55 @@ export default function DeliveryPortal() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Broadcast GPS for orders currently out for delivery.
+  const outOrders = mine.filter((o) => o.status === "out_for_delivery");
+  const outKey = outOrders.map((o) => o.id).join(",");
+
+  // Watch the phone's GPS while a delivery is out or the map tab is open.
   useEffect(() => {
-    if (!rider) return;
-    const active = mine.filter((o) => o.status === "out_for_delivery");
-    if (active.length === 0) return;
-    let watchId: number | null = null;
-    if ("geolocation" in navigator) {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          active.forEach((o) => {
-            void locFn({ data: { order_id: o.id, lat: pos.coords.latitude, lng: pos.coords.longitude } });
-          });
-        },
-        (err) => console.warn("geo err", err),
-        { enableHighAccuracy: true, maximumAge: 15000 },
-      );
-    }
-    return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
-  }, [rider, mine, locFn]);
+    if (!rider || rider.status !== "approved") return;
+    if (outOrders.length === 0 && tab !== "map") return;
+    if (!("geolocation" in navigator)) { setGeoError("This device can't share location."); return; }
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGeoError(null);
+        setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, at: Date.now() });
+      },
+      (err) => setGeoError(err.code === 1 ? "Location permission denied — enable it in your browser settings." : "Can't get your location right now."),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rider, outKey, tab]);
+
+  // Push the latest position for every out-for-delivery order, at most every 15s.
+  useEffect(() => {
+    if (!myPos || outOrders.length === 0) return;
+    const now = Date.now();
+    outOrders.forEach((o) => {
+      if (now - (lastSent.current[o.id] ?? 0) < 15000) return;
+      lastSent.current[o.id] = now;
+      void locFn({ data: { order_id: o.id, lat: myPos.lat, lng: myPos.lng } })
+        .then((r) => {
+          if (!r?.ok) return;
+          setLocations((prev) => [
+            { order_id: o.id, lat: myPos.lat, lng: myPos.lng, updated_at: r.updated_at ?? new Date().toISOString() },
+            ...prev.filter((l) => l.order_id !== o.id),
+          ]);
+        })
+        .catch((e) => console.warn("location send failed", e));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myPos, outKey, locFn]);
+
+  // Refresh orders + positions while deliveries are active.
+  useEffect(() => {
+    if (!rider || rider.status !== "approved") return;
+    const t = setInterval(() => {
+      void myLocFn().then((l) => setLocations(l as Loc[])).catch(() => {});
+      void mineFn().then((m) => setMine(m as Order[])).catch(() => {});
+    }, 20000);
+    return () => clearInterval(t);
+  }, [rider, myLocFn, mineFn]);
 
   const auth = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -164,7 +197,16 @@ export default function DeliveryPortal() {
     catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
   };
   const goOut = async (id: string) => {
-    try { await outFn({ data: { order_id: id } }); toast.success("Out for delivery — GPS sharing on."); void load(); }
+    try {
+      await outFn({ data: { order_id: id } });
+      toast.success("Out for delivery — sharing your location with the customer.");
+      // Send a first position right away so the customer sees the rider immediately.
+      if (myPos) {
+        const r = await locFn({ data: { order_id: id, lat: myPos.lat, lng: myPos.lng } }).catch(() => null);
+        if (r?.ok) lastSent.current[id] = Date.now();
+      }
+      void load();
+    }
     catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
   };
   const complete = async (id: string, code: string) => {
@@ -192,6 +234,7 @@ export default function DeliveryPortal() {
 
   const pending = rider && rider.status !== "approved";
   const history = mine.filter((o) => o.status === "delivered");
+  const activeOrders = mine.filter((o) => ["paid", "cod_pending", "out_for_delivery"].includes(o.status));
 
   return (
     <Layout>
@@ -401,33 +444,79 @@ export default function DeliveryPortal() {
 
               {!pending && tab === "map" && (
                 <div className="space-y-3">
-                  <div className="rounded-xl border bg-white p-4">
-                    <h3 className="display text-xl mb-1">Live map</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Your phone shares GPS automatically while an order is out for delivery.
-                    </p>
+                  <div className="rounded-xl border bg-white p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="display text-xl mb-1">Live map</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {outOrders.length > 0
+                          ? `Sharing your location with ${outOrders.length} customer${outOrders.length > 1 ? "s" : ""} — updates every 15 seconds.`
+                          : "Tap Start delivery on an order to share your location with the customer."}
+                      </p>
+                      {geoError && <p className="text-xs text-destructive mt-1">{geoError}</p>}
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${outOrders.length > 0 ? "bg-[hsl(var(--sea))] text-white" : "bg-muted text-muted-foreground"}`}>
+                      <span className={`h-2 w-2 rounded-full ${outOrders.length > 0 ? "bg-white animate-pulse" : "bg-muted-foreground"}`} />
+                      {outOrders.length > 0 ? "Live" : "Not sharing"}
+                    </span>
                   </div>
-                  {locations.length === 0 ? (
-                    <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
-                      No live positions yet. Start a delivery to begin sharing.
+
+                  {myPos ? (
+                    <div className="rounded-xl border bg-white overflow-hidden">
+                      <div className="p-3 text-sm flex flex-wrap justify-between gap-2">
+                        <span className="font-semibold">You are here</span>
+                        <span className="text-muted-foreground">
+                          {myPos.lat.toFixed(5)}, {myPos.lng.toFixed(5)} · ±{Math.round(myPos.accuracy)} m · {new Date(myPos.at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <iframe
+                        title="my-position"
+                        className="w-full h-72 border-0"
+                        loading="lazy"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${myPos.lng - 0.008}%2C${myPos.lat - 0.008}%2C${myPos.lng + 0.008}%2C${myPos.lat + 0.008}&layer=mapnik&marker=${myPos.lat}%2C${myPos.lng}`}
+                      />
                     </div>
                   ) : (
-                    locations.map((l) => (
-                      <div key={l.order_id} className="rounded-xl border bg-white overflow-hidden">
-                        <div className="p-3 text-sm flex flex-wrap justify-between gap-2">
-                          <span>Order {l.order_id.slice(0, 8)}</span>
-                          <span className="text-muted-foreground">
-                            {l.lat.toFixed(4)}, {l.lng.toFixed(4)} · {new Date(l.updated_at).toLocaleTimeString()}
-                          </span>
+                    <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                      Finding your position… allow location access when your phone asks.
+                    </div>
+                  )}
+
+                  <h4 className="display text-lg pt-2">Active deliveries</h4>
+                  {activeOrders.length === 0 ? (
+                    <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+                      No active deliveries. Accept an order from the Orders tab.
+                    </div>
+                  ) : (
+                    activeOrders.map((o) => {
+                      const loc = locations.find((l) => l.order_id === o.id);
+                      const isOut = o.status === "out_for_delivery";
+                      return (
+                        <div key={o.id} className="rounded-xl border bg-white p-4 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-semibold">{o.customer_name} · #{o.id.slice(0, 8).toUpperCase()}</span>
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${isOut ? "bg-[hsl(var(--sea))] text-white" : "bg-muted"}`}>
+                              {isOut ? "Out for delivery" : o.status.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <div className="text-sm flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />{o.address}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {loc
+                              ? `Customer sees you at ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)} · last sent ${new Date(loc.updated_at).toLocaleTimeString()}`
+                              : isOut ? "Waiting for your first GPS fix…" : "Location sharing starts when you tap Start delivery."}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {!isOut && <Button size="sm" onClick={() => goOut(o.id)}><PlayCircle className="h-4 w-4 mr-1" /> Start delivery</Button>}
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.address + ", Freetown, Sierra Leone")}`}
+                              target="_blank" rel="noopener noreferrer"
+                            >
+                              <Button size="sm" variant="outline"><MapIcon className="h-4 w-4 mr-1" /> Directions</Button>
+                            </a>
+                          </div>
                         </div>
-                        <iframe
-                          title={`map-${l.order_id}`}
-                          className="w-full h-64 border-0"
-                          loading="lazy"
-                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${l.lng - 0.01}%2C${l.lat - 0.01}%2C${l.lng + 0.01}%2C${l.lat + 0.01}&layer=mapnik&marker=${l.lat}%2C${l.lng}`}
-                        />
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               )}

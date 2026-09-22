@@ -153,12 +153,23 @@ export const markOutForDelivery = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ order_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { admin, rider } = await requireRider(context.userId);
-    const { error } = await admin
+    const { data: row, error } = await admin
       .from("orders")
       .update({ status: "out_for_delivery", out_for_delivery_at: new Date().toISOString() } as never)
       .eq("id", data.order_id)
-      .eq("rider_id", rider.id);
+      .eq("rider_id", rider.id)
+      .in("status", ["paid", "cod_pending", "out_for_delivery"])
+      .select("id, status")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!row) throw new Error("This order can't be started right now.");
+    await admin.from("order_events").insert({
+      order_id: data.order_id,
+      event_type: "status_change",
+      to_status: "out_for_delivery",
+      note: `${rider.display_name} is on the way`,
+      actor: context.userId,
+    } as never);
     return { ok: true };
   });
 
@@ -212,17 +223,26 @@ export const postRiderLocation = createServerFn({ method: "POST" })
   .inputValidator((d) => locSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { admin, rider } = await requireRider(context.userId);
-    await admin.from("rider_locations").upsert(
+    const { data: order } = await admin
+      .from("orders")
+      .select("id, rider_id, status")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (!order || order.rider_id !== rider.id) throw new Error("Not your order");
+    if (!["paid", "cod_pending", "out_for_delivery"].includes(order.status)) return { ok: false };
+    const updated_at = new Date().toISOString();
+    const { error } = await admin.from("rider_locations").upsert(
       {
         rider_id: rider.id,
         order_id: data.order_id,
         lat: data.lat,
         lng: data.lng,
-        updated_at: new Date().toISOString(),
+        updated_at,
       } as never,
       { onConflict: "order_id" },
     );
-    return { ok: true };
+    if (error) throw new Error(error.message);
+    return { ok: true, updated_at };
   });
 
 /* -------------------- Customer confirm receipt -------------------- */
@@ -379,9 +399,23 @@ export const getMyActiveLocations = createServerFn({ method: "GET" })
     if (!rider) return [];
     const { data } = await supabaseAdmin
       .from("rider_locations")
-      .select("order_id, lat, lng, updated_at")
+      .select("order_id, lat, lng, updated_at, orders(status, customer_name, address)")
       .eq("rider_id", rider.id)
       .order("updated_at", { ascending: false })
       .limit(20);
-    return data ?? [];
+    type Row = {
+      order_id: string; lat: number; lng: number; updated_at: string;
+      orders: { status: string; customer_name: string; address: string } | null;
+    };
+    return ((data ?? []) as unknown as Row[])
+      .filter((r) => r.orders && r.orders.status !== "delivered" && r.orders.status !== "cancelled")
+      .map((r) => ({
+        order_id: r.order_id,
+        lat: Number(r.lat),
+        lng: Number(r.lng),
+        updated_at: r.updated_at,
+        status: r.orders?.status ?? "",
+        customer_name: r.orders?.customer_name ?? "",
+        address: r.orders?.address ?? "",
+      }));
   });
