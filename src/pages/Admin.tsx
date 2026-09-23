@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { verifyAdminPasscode } from "@/lib/admin-gate.functions";
 import { toast } from "sonner";
-import { Shield, Package, BarChart3, MapPin } from "lucide-react";
+import { Shield, Package, BarChart3, MapPin, Users, Bike, Wallet, ListChecks, Sparkles } from "lucide-react";
 
 export default function AdminHome() {
   const navigate = useNavigate();
@@ -56,6 +56,11 @@ export default function AdminHome() {
               <p className="text-sm">You are signed in.</p>
               <div className="grid gap-2">
                 <Link to="/admin/orders"><Button className="w-full justify-start"><Package className="mr-2 h-4 w-4" /> Orders dashboard</Button></Link>
+                <Link to="/admin/customers"><Button variant="outline" className="w-full justify-start"><Users className="mr-2 h-4 w-4" /> Customers</Button></Link>
+                <Link to="/admin/riders"><Button variant="outline" className="w-full justify-start"><Bike className="mr-2 h-4 w-4" /> Rider approvals</Button></Link>
+                <Link to="/admin/payments"><Button variant="outline" className="w-full justify-start"><Wallet className="mr-2 h-4 w-4" /> Payments ledger</Button></Link>
+                <Link to="/admin/checklist"><Button variant="outline" className="w-full justify-start"><ListChecks className="mr-2 h-4 w-4" /> Payment checks</Button></Link>
+                <Link to="/admin/assistant"><Button variant="outline" className="w-full justify-start"><Sparkles className="mr-2 h-4 w-4" /> AI assistant</Button></Link>
                 <Link to="/admin/analytics"><Button variant="outline" className="w-full justify-start"><BarChart3 className="mr-2 h-4 w-4" /> Analytics</Button></Link>
                 <Link to="/admin/zones"><Button variant="outline" className="w-full justify-start"><MapPin className="mr-2 h-4 w-4" /> Delivery zones</Button></Link>
               </div>

@@ -23,6 +23,11 @@ const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
 const AdminOrders = lazy(() => import("./pages/AdminOrders"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminZones = lazy(() => import("./pages/AdminZones"));
+const AdminCustomers = lazy(() => import("./pages/AdminCustomers"));
+const AdminRiders = lazy(() => import("./pages/AdminRiders"));
+const AdminPayments = lazy(() => import("./pages/AdminPayments"));
+const AdminChecklist = lazy(() => import("./pages/AdminChecklist"));
+const AdminAssistant = lazy(() => import("./pages/AdminAssistant"));
 const Delivery = lazy(() => import("./pages/Delivery"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Order = lazy(() => import("./pages/Order"));
@@ -56,6 +61,12 @@ const LegacyApp = () => (
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/zones" element={<AdminZones />} />
+            <Route path="/admin/home" element={<Admin />} />
+            <Route path="/admin/customers" element={<AdminCustomers />} />
+            <Route path="/admin/riders" element={<AdminRiders />} />
+            <Route path="/admin/payments" element={<AdminPayments />} />
+            <Route path="/admin/checklist" element={<AdminChecklist />} />
+            <Route path="/admin/assistant" element={<AdminAssistant />} />
             <Route path="/delivery" element={<Delivery />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order/:id" element={<Order />} />
