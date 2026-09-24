@@ -3,6 +3,7 @@ import { Search, Mail, Phone, MapPin } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useState } from "react";
 import { toast } from "sonner";
+import { OrderHelp } from "@/components/site/OrderHelp";
 
 const topics = [
   { title: "Where to buy", body: "Find KK Drinks at shops and supermarkets across Sierra Leone." },
@@ -49,6 +50,8 @@ const Support = () => {
           <input className="bg-transparent outline-none w-full ml-3 text-sm" placeholder="Search for help with KK Drinks" />
         </div>
       </section>
+
+      <OrderHelp />
 
       {/* Contact form + info */}
       <section className="py-20 px-6">

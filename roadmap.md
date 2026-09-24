@@ -1,8 +1,10 @@
 # Roadmap
 
-- [ ] Admin screens: customers, rider approvals, payments ledger + links from /admin (and /admin/home)
-- [ ] Live Monime key for hosted checkout (cards) — needs live key from user
-- [ ] End-to-end dial-to-pay order test (paid flip + delivery code)
-- [ ] Sender domain + automatic order_paid / order_failed emails — needs user's domain
-- [ ] Automatic WhatsApp to customers + 073095177 — needs WhatsApp provider
-- [ ] Real rider location updates on the rider live map; out-for-delivery status
+- [x] Admin screens: customers, rider approvals, payments ledger, payment checks, AI assistant + links (tested)
+- [x] Simulated paid order + delivery code check (passes)
+- [x] Customer order-help AI on Support page
+- [x] Rider live location + out-for-delivery (code in place)
+- [ ] Live Monime key + Space ID — waiting on user (current key rejected by Monime, 401)
+- [ ] Sender domain for order_paid / order_failed emails — waiting on user's domain
+- [ ] WhatsApp Business auto-messages — waiting on user connecting WhatsApp
+- [ ] Real-money dial-to-pay order — needs a real payment by user
