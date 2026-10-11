@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "KK Drinks — Sierra Leone",
+  "short_name": "KK Drinks",
+  "description": "Discover and order KK Drinks fruit beverages in Sierra Leone.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fffaf3",
+  "theme_color": "#f47b20",
+  "categories": ["shopping", "food"],
+  "icons": [
+    { "src": "/kk-drinks-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/kk-drinks-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
