@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#f47b20"/>
+  <circle cx="256" cy="220" r="150" fill="#fffaf3"/>
+  <path d="M256 70c20-28 54-38 83-29-3 31-26 57-58 64" fill="#2f7d46"/>
+  <path d="M256 85c-10-26-35-43-64-43 1 30 22 55 51 63" fill="#4a9c53"/>
+  <text x="256" y="250" font-family="Arial, Helvetica, sans-serif" font-size="98" font-weight="800" text-anchor="middle" fill="#f47b20">KK</text>
+  <text x="256" y="315" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700" letter-spacing="6" text-anchor="middle" fill="#2f7d46">DRINKS</text>
+  <path d="M160 390h192" stroke="#fffaf3" stroke-width="12" stroke-linecap="round"/>
+  <text x="256" y="435" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="600" letter-spacing="3" text-anchor="middle" fill="#fffaf3">SIERRA LEONE</text>
+</svg>
