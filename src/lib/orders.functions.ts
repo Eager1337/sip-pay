@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
+import { DRINKS } from "@/data/drinks";
 
 function serverSupabase() {
   return createClient<Database>(
@@ -83,11 +84,27 @@ export const createCodOrder = createServerFn({ method: "POST" })
     }),
   }).parse(d))
   .handler(async ({ data }) => {
+    // Rebuild cart lines from the server catalog. Client-supplied names and prices
+    // are not authoritative for cash-on-delivery orders.
+    const verifiedItems: Array<{ slug: string; name: string; qty: number; price: number }> = [];
+    for (const item of data.items) {
+      const product = DRINKS.find((drink) => drink.slug === item.slug);
+      if (!product) {
+        return { ok: false as const, error: "One or more products are no longer available. Refresh your cart and try again." };
+      }
+      if (item.price !== product.price) {
+        return { ok: false as const, error: "A product price has changed. Refresh your cart and try again." };
+      }
+      if (item.qty > product.maxPerOrder || (product.stock !== null && item.qty > product.stock)) {
+        return { ok: false as const, error: "One or more quantities exceed the available stock or order limit." };
+      }
+      verifiedItems.push({ slug: product.slug, name: product.name, qty: item.qty, price: product.price });
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { resolveDeliveryFee } = await import("./checkout.functions");
     const orders = supabaseAdmin.from("orders") as any;
     const deliveryFee = await resolveDeliveryFee(data.customer.zone_id, data.customer.district);
-    const subtotal = data.items.reduce((s, i) => s + i.price * i.qty, 0);
+    const subtotal = verifiedItems.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = subtotal >= 120 ? 10 : 0;
     const total = Math.max(0, subtotal + deliveryFee - discount);
     const { data: order, error } = await orders
@@ -99,7 +116,7 @@ export const createCodOrder = createServerFn({ method: "POST" })
         city: data.customer.city ?? null,
         district: data.customer.district ?? null,
         notes: data.customer.notes ?? null,
-        items: data.items as never,
+        items: verifiedItems as never,
         total_leones: total,
         delivery_fee_leones: deliveryFee,
         discount_leones: discount,
