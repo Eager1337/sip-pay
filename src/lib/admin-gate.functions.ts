@@ -1,6 +1,5 @@
-// Passcode-based admin gate. The passcode ("Eagerbeaver123" by default) is
-// stored in the ADMIN_PASSCODE secret and checked server-side on every call.
-// Client persists the passcode in sessionStorage after successful verify.
+// Passcode-based admin gate. ADMIN_PASSCODE must be configured as a server-only
+// deployment secret. Never ship a known fallback credential in source control.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -13,14 +12,10 @@ function timingSafeEq(a: string, b: string) {
   return out === 0;
 }
 
-export const DEFAULT_ADMIN_PASSCODE = "Eagerbeaver123";
-
 export function checkAdminPasscode(pass: string | undefined | null): boolean {
-  // Falls back to a built-in passcode when ADMIN_PASSCODE is not configured,
-  // so the admin dashboard works out-of-the-box on any deploy (Vercel, etc.)
-  // without first setting the environment secret. Set ADMIN_PASSCODE to override.
-  const expected = process.env.ADMIN_PASSCODE || DEFAULT_ADMIN_PASSCODE;
-  if (!pass) return false;
+  const expected = process.env.ADMIN_PASSCODE;
+  // Fail closed: a missing server secret must never expose a predictable admin login.
+  if (!pass || !expected) return false;
   return timingSafeEq(pass, expected);
 }
 
