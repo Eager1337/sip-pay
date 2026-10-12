@@ -40,11 +40,12 @@ export const getMyEarnings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // payouts are keyed by the auth user id (see completeDelivery fix).
+    const { data: me } = await supabaseAdmin.from("riders").select("id").eq("user_id", context.userId).maybeSingle();
+    if (!me) return { payouts: [], total: 0, paid: 0, owed: 0 };
     const { data: payouts } = await supabaseAdmin
       .from("rider_payouts")
       .select("id, order_id, amount_leones, status, created_at")
-      .eq("rider_id", context.userId)
+      .eq("rider_id", (me as { id: string }).id)
       .order("created_at", { ascending: false })
       .limit(200);
     const rows = (payouts ?? []) as Array<{ id: string; order_id: string; amount_leones: number; status: string; created_at: string }>;
